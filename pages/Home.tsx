@@ -78,11 +78,11 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang }) => {
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
       <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+        <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
         <input
           type="text"
           placeholder={t('search_placeholder', lang)}
-          className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none shadow-sm text-slate-900"
+          className="w-full pl-12 pr-5 py-4 bg-white border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none shadow-sm text-slate-900 transition-all"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -99,7 +99,7 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang }) => {
             searchResults.map(student => (
               <div 
                 key={student.id} 
-                className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between"
+                className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between"
               >
                 <div onClick={() => onStudentClick(student)} className="flex-1 cursor-pointer">
                   <h3 className="font-semibold text-slate-800">{student.student_name}</h3>
@@ -119,32 +119,32 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang }) => {
         </div>
       )}
 
-      <div className="space-y-3">
-        <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest px-1">
+      <div className="space-y-4">
+        <h2 className="text-sm font-bold text-slate-400 px-1">
           {t('recent_calls', lang)}
         </h2>
         {loadingRecent ? (
           <div className="space-y-3">
             {[1, 2, 3].map(i => (
-              <div key={i} className="h-16 bg-slate-200 animate-pulse rounded-xl"></div>
+              <div key={i} className="h-16 bg-slate-100 animate-pulse rounded-2xl"></div>
             ))}
           </div>
         ) : recentCalls.length > 0 ? (
           recentCalls.map(call => (
             <div 
               key={call.id} 
-              className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center justify-between active:bg-slate-50 transition-colors"
+              className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between active:bg-slate-50 transition-colors"
             >
               <div 
                 onClick={() => call.students && onStudentClick(call.students)} 
                 className="flex items-center gap-3 cursor-pointer"
               >
-                <div className="bg-slate-100 p-2 rounded-lg text-slate-400">
+                <div className="bg-slate-50 p-2.5 rounded-xl text-slate-400">
                   <UserIcon size={20} />
                 </div>
                 <div>
-                  <h3 className="font-medium text-slate-800">{call.students?.student_name || 'Unknown'}</h3>
-                  <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-0.5">
+                  <h3 className="font-bold text-slate-800 leading-tight">{call.students?.student_name || 'Unknown'}</h3>
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-1">
                     <Clock size={10} />
                     {new Date(call.called_at).toLocaleTimeString(lang === 'bn' ? 'bn-BD' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
                   </div>
@@ -152,14 +152,14 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang }) => {
               </div>
               <button 
                 onClick={() => call.students && initiateCall(call.students)}
-                className="bg-emerald-600 text-white p-2 rounded-lg flex items-center justify-center shadow-lg shadow-emerald-100 active:scale-95 transition-transform"
+                className="bg-emerald-500 text-white p-2.5 rounded-xl flex items-center justify-center shadow-lg shadow-emerald-100 active:scale-95 transition-transform"
               >
-                <Phone size={16} />
+                <Phone size={18} />
               </button>
             </div>
           ))
         ) : (
-          <div className="text-center py-10 bg-white rounded-3xl border border-dashed border-slate-300">
+          <div className="text-center py-10 bg-slate-50 rounded-3xl border border-dashed border-slate-200">
             <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">{t('no_calls', lang)}</p>
           </div>
         )}
