@@ -21,9 +21,9 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, lang, m
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-slate-50 pb-24 overflow-x-hidden">
-      {/* Top Header */}
-      <header className="sticky top-0 z-50 bg-white border-b border-slate-100 px-4 py-3 shadow-sm flex items-center gap-3">
+    <div className="flex flex-col h-screen h-[100dvh] bg-slate-50 overflow-hidden font-['Hind_Siliguri']">
+      {/* Top Header - Fixed Height */}
+      <header className="flex-none bg-white border-b border-slate-100 px-4 py-3 shadow-sm flex items-center gap-3 z-50">
         <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center overflow-hidden border border-emerald-50 shadow-inner">
           {madrasah?.logo_url ? (
             <img src={madrasah.logo_url} className="w-full h-full object-cover" alt="Logo" />
@@ -41,15 +41,16 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, lang, m
         </div>
       </header>
 
-      <main className="flex-1 w-full max-w-md mx-auto px-4 pt-4">
+      {/* Main Content Area - Scrollable */}
+      <main className="flex-1 overflow-y-auto px-4 pt-4 pb-12 w-full max-w-md mx-auto no-select">
         {children}
       </main>
 
-      {/* Bottom Navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 flex justify-around items-center py-2 px-6 safe-area-bottom z-50 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
+      {/* Bottom Navigation - Fixed Height */}
+      <nav className="flex-none bg-white border-t border-slate-200 flex justify-around items-center py-2 px-6 pb-[env(safe-area-inset-bottom,16px)] z-50 shadow-[0_-4px_20px_-10px_rgba(0,0,0,0.1)]">
         <button 
           onClick={() => setView('home')}
-          className={`flex flex-col items-center gap-1 transition-all active:scale-90 ${isTabActive('home') ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}
+          className={`flex flex-col items-center gap-1 transition-all active:scale-90 p-2 ${isTabActive('home') ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}
         >
           <Home size={22} strokeWidth={isTabActive('home') ? 2.5 : 2} />
           <span className={`text-[10px] font-bold ${isTabActive('home') ? 'opacity-100' : 'opacity-70'}`}>{t('home', lang)}</span>
@@ -57,7 +58,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, lang, m
         
         <button 
           onClick={() => setView('classes')}
-          className={`flex flex-col items-center gap-1 transition-all active:scale-90 ${isTabActive('classes') ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}
+          className={`flex flex-col items-center gap-1 transition-all active:scale-90 p-2 ${isTabActive('classes') ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}
         >
           <Users size={22} strokeWidth={isTabActive('classes') ? 2.5 : 2} />
           <span className={`text-[10px] font-bold ${isTabActive('classes') ? 'opacity-100' : 'opacity-70'}`}>{t('classes', lang)}</span>
@@ -65,7 +66,7 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, lang, m
         
         <button 
           onClick={() => setView('account')}
-          className={`flex flex-col items-center gap-1 transition-all active:scale-90 ${isTabActive('account') ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}
+          className={`flex flex-col items-center gap-1 transition-all active:scale-90 p-2 ${isTabActive('account') ? 'text-emerald-600 scale-110' : 'text-slate-400'}`}
         >
           <User size={22} strokeWidth={isTabActive('account') ? 2.5 : 2} />
           <span className={`text-[10px] font-bold ${isTabActive('account') ? 'opacity-100' : 'opacity-70'}`}>{t('account', lang)}</span>
