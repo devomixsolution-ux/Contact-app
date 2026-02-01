@@ -8,12 +8,16 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
+      :root {
+        --safe-top: env(safe-area-inset-top);
+        --safe-bottom: env(safe-area-inset-bottom);
+      }
       html, body {
         height: 100%;
         margin: 0;
         padding: 0;
-        overflow: hidden; /* Prevent page level scrolling */
-        background-color: #f8fafc;
+        overflow: hidden;
+        background-color: #ffffff;
       }
       body {
         font-family: 'Hind Siliguri', sans-serif;
@@ -22,22 +26,13 @@
       #root {
         height: 100%;
       }
-      /* Prevent text selection to feel more like a native app */
       .no-select {
         -webkit-touch-callout: none;
         -webkit-user-select: none;
         user-select: none;
       }
-      /* Custom scrollbar for desktop view */
       ::-webkit-scrollbar {
-        width: 4px;
-      }
-      ::-webkit-scrollbar-track {
-        background: transparent;
-      }
-      ::-webkit-scrollbar-thumb {
-        background: #cbd5e1;
-        border-radius: 10px;
+        width: 0px;
       }
     </style>
   <script type="importmap">
@@ -55,7 +50,6 @@
 </head>
   <body>
     <div id="root"></div>
-    <!-- Entry point script -->
     <script type="module" src="./index.tsx"></script>
   </body>
 </html>
