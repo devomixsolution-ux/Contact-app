@@ -19,6 +19,9 @@
         font-family: 'Hind Siliguri', sans-serif;
         -webkit-tap-highlight-color: transparent;
       }
+      #root {
+        height: 100%;
+      }
       /* Prevent text selection to feel more like a native app */
       .no-select {
         -webkit-touch-callout: none;
@@ -44,6 +47,7 @@
     "react/": "https://esm.sh/react@^19.2.4/",
     "react": "https://esm.sh/react@^19.2.4",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
+    "react-dom/client": "https://esm.sh/react-dom@^19.2.4/client",
     "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.93.3"
   }
 }
@@ -51,5 +55,7 @@
 </head>
   <body>
     <div id="root"></div>
+    <!-- Entry point script -->
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>
