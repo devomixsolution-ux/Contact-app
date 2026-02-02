@@ -55,7 +55,7 @@ const Auth: React.FC<AuthProps> = ({ lang }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#d35132] via-[#e57d4a] to-[#d35132] flex flex-col items-center justify-start p-6 overflow-y-auto relative">
+    <div className="min-h-screen bg-gradient-to-br from-[#d35132] via-[#e57d4a] to-[#d35132] flex flex-col items-center justify-center p-6 overflow-y-auto relative">
       
       {/* Decorative Background Elements */}
       <div className="absolute bottom-0 left-0 right-0 opacity-10 pointer-events-none z-0">
@@ -66,7 +66,7 @@ const Auth: React.FC<AuthProps> = ({ lang }) => {
         </svg>
       </div>
 
-      <div className="w-full max-w-sm flex flex-col items-center space-y-6 pt-4 pb-10 z-10">
+      <div className="w-full max-w-sm flex flex-col items-center space-y-6 pt-10 pb-10 z-10">
         <div className="text-center space-y-1">
           <h1 className="text-4xl font-black text-white drop-shadow-2xl leading-tight font-noto tracking-tighter">
             Welcome to<br />{brandInfo.name}
@@ -74,7 +74,7 @@ const Auth: React.FC<AuthProps> = ({ lang }) => {
           <p className="text-white/90 font-black text-xl tracking-tight drop-shadow-md">Log in here.</p>
         </div>
 
-        {/* Scaled down profile icon to save vertical space */}
+        {/* Profile icon */}
         <div className="relative">
           <div className="w-40 h-40 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center p-4 border-2 border-white/30 shadow-[0_20px_60px_rgba(0,0,0,0.3)] relative">
              <div className="w-full h-full bg-white rounded-full flex items-center justify-center shadow-inner overflow-hidden relative">
@@ -143,8 +143,8 @@ const Auth: React.FC<AuthProps> = ({ lang }) => {
           </button>
         </form>
 
-        <p className="text-white/40 text-[11px] font-black uppercase tracking-[0.4em] pt-4">
-          {brandInfo.name} &copy; 2024
+        <p className="text-white/60 text-[10px] font-black uppercase tracking-widest pt-4 text-center px-4 leading-relaxed">
+          &copy; 2026 Deenora app by KM IBRAHIM.<br/>All rights reserved.
         </p>
       </div>
     </div>
