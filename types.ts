@@ -22,6 +22,7 @@ export interface Student {
   guardian_name?: string;
   roll?: number;
   guardian_phone: string;
+  guardian_phone_2?: string;
   class_id: string;
   madrasah_id: string;
   created_at: string;
