@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { ArrowLeft, Phone, Edit3, User as UserIcon, Book, Smartphone, Hash } from 'lucide-react';
+import { ArrowLeft, Phone, Edit3, User as UserIcon, Smartphone, Hash } from 'lucide-react';
+import { supabase } from '../supabase';
 import { Student, Language } from '../types';
 import { t } from '../translations';
 
@@ -12,7 +13,19 @@ interface StudentDetailsProps {
 }
 
 const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack, lang }) => {
+  const recordCall = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    await supabase.from('recent_calls').insert({
+      student_id: student.id,
+      guardian_phone: student.guardian_phone,
+      madrasah_id: user.id
+    });
+  };
+
   const initiateCall = async () => {
+    await recordCall();
     window.location.href = `tel:${student.guardian_phone}`;
   };
 
