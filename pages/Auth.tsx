@@ -55,7 +55,7 @@ const Auth: React.FC<AuthProps> = ({ lang }) => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#d35132] via-[#e57d4a] to-[#d35132] flex flex-col items-center justify-center p-6 overflow-y-auto relative">
+    <div className="min-h-screen bg-gradient-to-br from-[#d35132] via-[#e57d4a] to-[#d35132] flex flex-col items-center justify-center p-6 relative overflow-hidden">
       
       {/* Decorative Background Elements */}
       <div className="absolute bottom-0 left-0 right-0 opacity-10 pointer-events-none z-0">
@@ -66,7 +66,7 @@ const Auth: React.FC<AuthProps> = ({ lang }) => {
         </svg>
       </div>
 
-      <div className="w-full max-w-sm flex flex-col items-center space-y-6 z-10">
+      <div className="w-full max-w-sm flex flex-col items-center space-y-8 z-10 py-10">
         <div className="text-center space-y-1">
           <h1 className="text-4xl font-black text-white drop-shadow-2xl leading-tight font-noto tracking-tighter">
             Welcome to<br />{brandInfo.name}
