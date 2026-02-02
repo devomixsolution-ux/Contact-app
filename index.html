@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Madrasah Contact App</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;700;900&display=swap" rel="stylesheet">
     <style>
       :root {
         --safe-top: env(safe-area-inset-top);
@@ -17,11 +17,12 @@
         margin: 0;
         padding: 0;
         overflow: hidden;
-        background-color: #ffffff;
+        background-color: #d35132;
       }
       body {
-        font-family: 'Hind Siliguri', sans-serif;
+        font-family: 'Hind Siliguri', 'Noto Sans Bengali', sans-serif;
         -webkit-tap-highlight-color: transparent;
+        font-size: 16px; /* Increased base size */
       }
       #root {
         height: 100%;
@@ -33,6 +34,9 @@
       }
       ::-webkit-scrollbar {
         width: 0px;
+      }
+      .font-noto {
+        font-family: 'Noto Sans Bengali', sans-serif;
       }
     </style>
   <script type="importmap">
