@@ -99,7 +99,6 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
       setError(err.message || 'Upload failed. Check storage permissions.');
     } finally {
       setUploading(false);
-      // Reset input value so same file can be selected again
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
@@ -134,7 +133,7 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
               {uploading ? (
                 <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center">
                   <Loader2 className="animate-spin text-white" size={32} />
-                  <span className="text-[10px] text-white font-black mt-2">UPLOADING...</span>
+                  <span className="text-[10px] text-white font-black mt-2 uppercase">Uploading...</span>
                 </div>
               ) : madrasah?.logo_url ? (
                 <img src={madrasah.logo_url} className="w-full h-full object-cover" alt="Logo" />
@@ -151,7 +150,6 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
               className="hidden" 
               accept="image/*" 
               onChange={handleFileUpload} 
-              capture="environment" // Hint for mobile devices to use camera/gallery
             />
           </div>
           <div className="text-center">
@@ -161,7 +159,6 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
         </div>
 
         <div className="space-y-5">
-          {/* Madrasah ID (UUID) Field */}
           <div className="space-y-2">
             <label className="text-[10px] font-black text-white/50 uppercase tracking-widest px-1">{t('madrasah_id', lang)}</label>
             <div className="relative group">
