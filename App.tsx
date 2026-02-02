@@ -10,6 +10,7 @@ import StudentDetails from './pages/StudentDetails';
 import StudentForm from './pages/StudentForm';
 import Account from './pages/Account';
 import { View, Class, Student, Language, Madrasah } from './types';
+import { WifiOff } from 'lucide-react';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -19,11 +20,18 @@ const App: React.FC = () => {
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isEditing, setIsEditing] = useState(false);
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [lang, setLang] = useState<Language>(() => {
     return (localStorage.getItem('app_lang') as Language) || 'bn';
   });
 
   useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) fetchMadrasahProfile(session.user.id);
@@ -36,19 +44,33 @@ const App: React.FC = () => {
       else setMadrasah(null);
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
   }, []);
 
   const fetchMadrasahProfile = async (userId: string) => {
-    const { data } = await supabase
-      .from('madrasahs')
-      .select('*')
-      .eq('id', userId)
-      .single();
-    if (data) {
-      setMadrasah(data);
-      localStorage.setItem('m_name', data.name);
-      if (data.logo_url) localStorage.setItem('m_logo', data.logo_url);
+    // Try to get from local storage first for instant load
+    const cachedProfile = localStorage.getItem(`profile_${userId}`);
+    if (cachedProfile) {
+      const parsed = JSON.parse(cachedProfile);
+      setMadrasah(parsed);
+    }
+
+    if (navigator.onLine) {
+      const { data } = await supabase
+        .from('madrasahs')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (data) {
+        setMadrasah(data);
+        localStorage.setItem(`profile_${userId}`, JSON.stringify(data));
+        localStorage.setItem('m_name', data.name);
+        if (data.logo_url) localStorage.setItem('m_logo', data.logo_url);
+      }
     }
   };
 
@@ -80,8 +102,8 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-[#d35132]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
       </div>
     );
   }
@@ -91,49 +113,57 @@ const App: React.FC = () => {
   }
 
   return (
-    <Layout currentView={view} setView={setView} lang={lang} madrasah={madrasah}>
-      {view === 'home' && (
-        <Home onStudentClick={navigateToStudentDetails} lang={lang} />
+    <div className="relative h-full w-full">
+      {!isOnline && (
+        <div className="absolute top-0 left-0 right-0 bg-black/40 backdrop-blur-md text-white text-[10px] font-black py-1 px-4 z-[60] flex items-center justify-center gap-2 uppercase tracking-widest border-b border-white/10">
+          <WifiOff size={10} />
+          {lang === 'bn' ? 'অফলাইন মোড' : 'Offline Mode'}
+        </div>
       )}
-      {view === 'classes' && (
-        <Classes onClassClick={navigateToStudents} lang={lang} />
-      )}
-      {view === 'students' && selectedClass && (
-        <Students 
-          selectedClass={selectedClass} 
-          onStudentClick={navigateToStudentDetails} 
-          onAddClick={() => navigateToStudentForm()}
-          onBack={() => setView('classes')}
-          lang={lang}
-        />
-      )}
-      {view === 'student-details' && selectedStudent && (
-        <StudentDetails 
-          student={selectedStudent} 
-          onEdit={() => navigateToStudentForm(selectedStudent)}
-          onBack={() => setView(selectedClass ? 'students' : 'home')}
-          lang={lang}
-        />
-      )}
-      {view === 'student-form' && (
-        <StudentForm 
-          student={selectedStudent} 
-          defaultClassId={selectedClass?.id}
-          isEditing={isEditing} 
-          onSuccess={() => {
-            fetchMadrasahProfile(session.user.id);
-            setView(selectedClass ? 'students' : 'home');
-          }}
-          onCancel={() => {
-            setView(selectedStudent ? 'student-details' : 'students');
-          }}
-          lang={lang}
-        />
-      )}
-      {view === 'account' && (
-        <Account lang={lang} setLang={changeLanguage} onProfileUpdate={() => fetchMadrasahProfile(session.user.id)} />
-      )}
-    </Layout>
+      <Layout currentView={view} setView={setView} lang={lang} madrasah={madrasah}>
+        {view === 'home' && (
+          <Home onStudentClick={navigateToStudentDetails} lang={lang} />
+        )}
+        {view === 'classes' && (
+          <Classes onClassClick={navigateToStudents} lang={lang} />
+        )}
+        {view === 'students' && selectedClass && (
+          <Students 
+            selectedClass={selectedClass} 
+            onStudentClick={navigateToStudentDetails} 
+            onAddClick={() => navigateToStudentForm()}
+            onBack={() => setView('classes')}
+            lang={lang}
+          />
+        )}
+        {view === 'student-details' && selectedStudent && (
+          <StudentDetails 
+            student={selectedStudent} 
+            onEdit={() => navigateToStudentForm(selectedStudent)}
+            onBack={() => setView(selectedClass ? 'students' : 'home')}
+            lang={lang}
+          />
+        )}
+        {view === 'student-form' && (
+          <StudentForm 
+            student={selectedStudent} 
+            defaultClassId={selectedClass?.id}
+            isEditing={isEditing} 
+            onSuccess={() => {
+              fetchMadrasahProfile(session.user.id);
+              setView(selectedClass ? 'students' : 'home');
+            }}
+            onCancel={() => {
+              setView(selectedStudent ? 'student-details' : 'students');
+            }}
+            lang={lang}
+          />
+        )}
+        {view === 'account' && (
+          <Account lang={lang} setLang={changeLanguage} onProfileUpdate={() => fetchMadrasahProfile(session.user.id)} />
+        )}
+      </Layout>
+    </div>
   );
 };
 
