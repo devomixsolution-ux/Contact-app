@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ArrowLeft, Phone, Edit3, User as UserIcon, Smartphone, Hash } from 'lucide-react';
+import { ArrowLeft, Phone, Edit3, User as UserIcon, Smartphone, Hash, UserCheck } from 'lucide-react';
 import { supabase } from '../supabase';
 import { Student, Language } from '../types';
 import { t } from '../translations';
@@ -51,7 +51,16 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
           </div>
         </div>
 
-        <div className="space-y-5">
+        <div className="space-y-4">
+          {student.guardian_name && (
+            <div className="flex items-center gap-6 p-6 bg-white/10 rounded-[2.5rem] border border-white/15 shadow-inner">
+              <div className="p-3 bg-white/10 rounded-2xl text-white/60"><UserCheck size={28} /></div>
+              <div>
+                <p className="text-[12px] text-white/50 uppercase font-black tracking-[0.2em] mb-0.5">{t('guardian_name', lang)}</p>
+                <p className="text-2xl font-black text-white">{student.guardian_name}</p>
+              </div>
+            </div>
+          )}
           <div className="flex items-center gap-6 p-6 bg-white/10 rounded-[2.5rem] border border-white/15 shadow-inner">
             <div className="p-3 bg-white/10 rounded-2xl text-white/60"><Hash size={28} /></div>
             <div>
