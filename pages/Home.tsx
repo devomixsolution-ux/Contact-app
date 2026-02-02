@@ -58,19 +58,27 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang }) => {
   }, [searchQuery, handleSearch]);
 
   const recordCall = async (student: Student) => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-    await supabase.from('recent_calls').insert({
-      student_id: student.id,
-      guardian_phone: student.guardian_phone,
-      madrasah_id: user.id
-    });
-    
-    await fetchRecentCalls();
+      const { error } = await supabase.from('recent_calls').insert({
+        student_id: student.id,
+        guardian_phone: student.guardian_phone,
+        madrasah_id: user.id
+      });
+      
+      if (error) throw error;
+      
+      await fetchRecentCalls();
+    } catch (e) {
+      console.error('Call recording failed:', e);
+    }
   };
 
   const initiateCall = async (student: Student) => {
+    // Await the record update BEFORE triggering the system dialer
+    // This is crucial for mobile WebViews.
     await recordCall(student);
     window.location.href = `tel:${student.guardian_phone}`;
   };
