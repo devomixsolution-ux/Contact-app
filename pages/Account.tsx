@@ -28,16 +28,28 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
   }, []);
 
   const fetchProfile = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      const { data } = await supabase.from('madrasahs').select('*').eq('id', user.id).single();
-      if (data) {
-        setMadrasah(data);
-        setNewName(data.name);
-        setNewPhone(data.phone || '');
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error: fetchError } = await supabase
+          .from('madrasahs')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (fetchError) throw fetchError;
+        
+        if (data) {
+          setMadrasah(data);
+          setNewName(data.name);
+          setNewPhone(data.phone || '');
+        }
       }
+    } catch (err: any) {
+      setError('Could not load profile');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const handleUpdate = async () => {
@@ -78,7 +90,7 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
         .from('logos')
         .upload(fileName, file, { 
           upsert: true,
-          contentType: file.type 
+          contentType: file.type || 'image/jpeg'
         });
       
       if (uploadError) throw uploadError;
@@ -96,7 +108,7 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
       await fetchProfile();
     } catch (err: any) {
       console.error('Upload error:', err);
-      setError(err.message || 'Upload failed. Check storage permissions.');
+      setError(err.message || 'Upload failed. Please try again.');
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -131,7 +143,7 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
           >
             <div className="bg-white/20 w-32 h-32 rounded-full flex items-center justify-center ring-8 ring-white/10 overflow-hidden border-2 border-white/50 shadow-2xl relative">
               {uploading ? (
-                <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center">
+                <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center z-20">
                   <Loader2 className="animate-spin text-white" size={32} />
                   <span className="text-[10px] text-white font-black mt-2 uppercase">Uploading...</span>
                 </div>
@@ -141,12 +153,15 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
                 <Camera size={40} className="text-white/60" />
               )}
             </div>
-            <div className="absolute -bottom-1 -right-1 bg-white text-[#d35132] p-2 rounded-full shadow-lg border border-white/50 group-active:scale-90 transition-transform">
+            <div className="absolute -bottom-1 -right-1 bg-white text-[#d35132] p-2 rounded-full shadow-lg border border-white/50 group-active:scale-90 transition-transform z-30">
               <Camera size={18} />
             </div>
+            {/* Added id and name for better WebView support */}
             <input 
               type="file" 
-              ref={fileInputRef} 
+              ref={fileInputRef}
+              id="logo-upload"
+              name="logo-upload"
               className="hidden" 
               accept="image/*" 
               onChange={handleFileUpload} 
@@ -169,7 +184,7 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
                 type="text"
                 readOnly
                 className="w-full pl-11 pr-14 py-5 bg-white/5 border border-white/10 rounded-3xl text-white/60 font-mono text-sm outline-none cursor-default"
-                value={madrasah?.id || ''}
+                value={madrasah?.id || 'Not available'}
               />
               <button 
                 onClick={copyUUID}
