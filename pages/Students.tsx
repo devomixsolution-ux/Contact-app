@@ -48,8 +48,20 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
     setLoading(false);
   };
 
-  const initiateCall = (e: React.MouseEvent, student: Student) => {
+  const recordCall = async (student: Student) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+
+    await supabase.from('recent_calls').insert({
+      student_id: student.id,
+      guardian_phone: student.guardian_phone,
+      madrasah_id: user.id
+    });
+  };
+
+  const initiateCall = async (e: React.MouseEvent, student: Student) => {
     e.stopPropagation();
+    await recordCall(student);
     window.location.href = `tel:${student.guardian_phone}`;
   };
 
