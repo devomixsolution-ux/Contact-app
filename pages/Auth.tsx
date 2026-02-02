@@ -66,7 +66,7 @@ const Auth: React.FC<AuthProps> = ({ lang }) => {
         </svg>
       </div>
 
-      <div className="w-full max-w-sm flex flex-col items-center space-y-6 pt-10 pb-10 z-10">
+      <div className="w-full max-w-sm flex flex-col items-center space-y-6 z-10">
         <div className="text-center space-y-1">
           <h1 className="text-4xl font-black text-white drop-shadow-2xl leading-tight font-noto tracking-tighter">
             Welcome to<br />{brandInfo.name}
@@ -143,8 +143,8 @@ const Auth: React.FC<AuthProps> = ({ lang }) => {
           </button>
         </form>
 
-        <p className="text-white/60 text-[10px] font-black uppercase tracking-widest pt-4 text-center px-4 leading-relaxed">
-          &copy; 2026 Deenora app by KM IBRAHIM.<br/>All rights reserved.
+        <p className="text-white/70 text-[10px] font-black pt-4 text-center px-4 leading-relaxed tracking-wider">
+          © 2026 Deenora app by KM IBRAHIM. All rights reserved.
         </p>
       </div>
     </div>
