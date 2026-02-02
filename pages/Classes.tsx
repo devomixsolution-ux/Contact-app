@@ -22,15 +22,27 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang }) => {
   }, []);
 
   const fetchClasses = async () => {
-    setLoading(true);
-    const { data } = await supabase.from('classes').select('*').order('class_name');
-    if (data) setClasses(data);
-    setLoading(false);
+    // 1. Load from cache first
+    const cached = localStorage.getItem('cache_classes');
+    if (cached) {
+      setClasses(JSON.parse(cached));
+      setLoading(false);
+    }
+
+    // 2. Refresh from server if online
+    if (navigator.onLine) {
+      const { data } = await supabase.from('classes').select('*').order('class_name');
+      if (data) {
+        setClasses(data);
+        localStorage.setItem('cache_classes', JSON.stringify(data));
+      }
+      setLoading(false);
+    }
   };
 
   const handleAddClass = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newClassName.trim()) return;
+    if (!newClassName.trim() || !navigator.onLine) return;
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -56,14 +68,15 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang }) => {
         <h1 className="text-3xl font-black text-white drop-shadow-lg font-noto">{t('classes_title', lang)}</h1>
         <button 
           onClick={() => setShowAddModal(true)}
-          className="bg-white text-[#d35132] px-6 py-3.5 rounded-2xl text-[15px] font-black flex items-center gap-2 shadow-2xl active:scale-95 transition-all"
+          disabled={!navigator.onLine}
+          className={`bg-white text-[#d35132] px-6 py-3.5 rounded-2xl text-[15px] font-black flex items-center gap-2 shadow-2xl active:scale-95 transition-all ${!navigator.onLine ? 'opacity-50' : ''}`}
         >
           <Plus size={20} strokeWidth={3.5} />
           {t('new_class', lang)}
         </button>
       </div>
 
-      {loading ? (
+      {loading && classes.length === 0 ? (
         <div className="space-y-4">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="h-24 bg-white/10 animate-pulse rounded-[2.5rem]"></div>
@@ -97,7 +110,6 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang }) => {
         </div>
       )}
 
-      {/* Add Modal with Large Fonts */}
       {showAddModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
           <div className="bg-[#e57d4a] w-full max-w-sm rounded-[3rem] shadow-[0_30px_100px_rgba(0,0,0,0.5)] p-10 border border-white/30 animate-in zoom-in-95">
