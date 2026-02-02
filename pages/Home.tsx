@@ -67,17 +67,16 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang }) => {
       madrasah_id: user.id
     });
     
-    fetchRecentCalls();
+    await fetchRecentCalls();
   };
 
-  const initiateCall = (student: Student) => {
-    recordCall(student);
+  const initiateCall = async (student: Student) => {
+    await recordCall(student);
     window.location.href = `tel:${student.guardian_phone}`;
   };
 
   return (
     <div className="space-y-7 animate-in fade-in duration-500">
-      {/* Bigger Search Bar Text */}
       <div className="relative group">
         <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-white/60" size={24} />
         <input
@@ -120,7 +119,6 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang }) => {
         </div>
       )}
 
-      {/* Recent Calls - Larger text */}
       <div className="space-y-5">
         <h2 className="text-[13px] font-black text-white/70 uppercase tracking-[0.25em] px-3 drop-shadow-sm">
           {t('recent_calls', lang)}
