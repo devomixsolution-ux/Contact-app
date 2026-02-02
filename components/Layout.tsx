@@ -21,10 +21,13 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, lang, m
   };
 
   return (
-    <div className="fixed inset-0 flex flex-col overflow-hidden bg-gradient-to-br from-[#d35132] via-[#e57d4a] to-[#d35132] font-['Hind_Siliguri']">
+    <div 
+      className="flex flex-col overflow-hidden bg-gradient-to-br from-[#d35132] via-[#e57d4a] to-[#d35132] font-['Hind_Siliguri'] w-full"
+      style={{ height: 'var(--app-height, 100%)' }}
+    >
       
-      {/* Top Header - Glass Effect */}
-      <header className="flex-none px-6 pt-[calc(env(safe-area-inset-top)+14px)] pb-4 flex items-center gap-4 z-50 border-b border-white/10 bg-white/5 backdrop-blur-md">
+      {/* Top Header - Glass Effect. Use flex-none to ensure it never shrinks */}
+      <header className="flex-none px-6 pt-[calc(env(safe-area-inset-top)+14px)] pb-4 flex items-center gap-4 z-50 border-b border-white/10 bg-white/10 backdrop-blur-md">
         <div className="w-14 h-14 rounded-full flex items-center justify-center overflow-hidden border-2 border-white/40 bg-white/20 shadow-xl shrink-0">
           {madrasah?.logo_url ? (
             <img src={madrasah.logo_url} className="w-full h-full object-cover" alt="Logo" />
@@ -42,12 +45,12 @@ const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, lang, m
         </div>
       </header>
 
-      {/* Main Content Area - This is where internal scrolling happens */}
+      {/* Main Content Area - Scrollable but contained */}
       <main className="flex-1 overflow-y-auto px-6 pt-5 pb-28 w-full max-w-md mx-auto no-select scroll-smooth">
         {children}
       </main>
 
-      {/* Bottom Navigation - Glass Effect */}
+      {/* Bottom Navigation - Fixed at bottom of the flex container */}
       <nav className="flex-none bg-white/10 backdrop-blur-2xl border-t border-white/10 flex justify-around items-center py-3 px-6 pb-[calc(env(safe-area-inset-bottom,16px)+10px)] z-50 shadow-[0_-15px_50px_rgba(0,0,0,0.15)]">
         <button 
           onClick={() => setView('home')}
