@@ -14,11 +14,13 @@ interface StudentFormProps {
   lang: Language;
 }
 
+// Added missing default export and component closure
 const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEditing, onSuccess, onCancel, lang }) => {
   const [name, setName] = useState(student?.student_name || '');
   const [guardianName, setGuardianName] = useState(student?.guardian_name || '');
   const [roll, setRoll] = useState(student?.roll?.toString() || '');
   const [phone, setPhone] = useState(student?.guardian_phone || '');
+  const [phone2, setPhone2] = useState(student?.guardian_phone_2 || '');
   const [classId, setClassId] = useState(student?.class_id || defaultClassId || '');
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(false);
@@ -44,6 +46,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
         guardian_name: guardianName.trim(),
         roll: roll ? parseInt(roll) : null,
         guardian_phone: phone.trim(),
+        guardian_phone_2: phone2.trim() || null,
         class_id: classId,
         madrasah_id: user.id
       };
@@ -129,6 +132,21 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
                   onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
                 />
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="flex items-center gap-2 text-[10px] font-black text-white/60 uppercase tracking-widest px-1">
+                <Phone size={14} />
+                {t('guardian_phone_2', lang)}
+              </label>
+              <input
+                type="tel"
+                maxLength={11}
+                className="w-full px-6 py-5 bg-white/10 border border-white/20 rounded-3xl outline-none text-white font-bold focus:bg-white/20 transition-all tracking-wider"
+                value={phone2}
+                onChange={(e) => setPhone2(e.target.value.replace(/\D/g, '').slice(0, 11))}
+                placeholder={lang === 'bn' ? 'ঐচ্ছিক' : 'Optional'}
+              />
             </div>
 
             <div className="space-y-2">
