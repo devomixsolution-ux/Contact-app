@@ -3,7 +3,7 @@
 <html lang="bn">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
     <title>Madrasah Contact App</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;500;600;700&family=Noto+Sans+Bengali:wght@400;700;900&display=swap" rel="stylesheet">
@@ -11,16 +11,22 @@
       :root {
         --safe-top: env(safe-area-inset-top);
         --safe-bottom: env(safe-area-inset-bottom);
+        --app-height: 100%;
       }
       html, body {
         height: 100%;
+        width: 100%;
         margin: 0;
         padding: 0;
         overflow: hidden;
         background-color: #d35132;
-        overscroll-behavior: none; /* Prevents pull-to-refresh and bouncing */
-        position: fixed; /* Prevents entire page from shifting on keyboard */
-        width: 100%;
+        /* কিবোর্ড খোলার সময় পেজ যেন উপরে লাফ না দেয় */
+        position: fixed; 
+        left: 0;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        overscroll-behavior: none;
       }
       body {
         font-family: 'Hind Siliguri', 'Noto Sans Bengali', sans-serif;
@@ -30,6 +36,8 @@
       #root {
         height: 100%;
         width: 100%;
+        display: flex;
+        flex-direction: column;
       }
       .no-select {
         -webkit-touch-callout: none;
@@ -41,6 +49,10 @@
       }
       .font-noto {
         font-family: 'Noto Sans Bengali', sans-serif;
+      }
+      /* ইনপুট ফোকাস করার সময় ব্রাউজারের অটো-স্ক্রলিং প্যাডিং */
+      input, select, textarea {
+        scroll-margin-top: 100px;
       }
     </style>
   <script type="importmap">
@@ -59,5 +71,21 @@
   <body>
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
+    <script>
+      // কিবোর্ড ইস্যু ফিক্স করার জন্য ভিজ্যুয়াল ভিউপোর্ট হ্যান্ডলার
+      const setAppHeight = () => {
+        const doc = document.documentElement;
+        // visualViewport ব্যবহার করে সঠিক উচ্চতা বের করা (কিবোর্ড বাদ দিয়ে)
+        const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
+        doc.style.setProperty('--app-height', `${height}px`);
+      };
+
+      if (window.visualViewport) {
+        window.visualViewport.addEventListener('resize', setAppHeight);
+        window.visualViewport.addEventListener('scroll', setAppHeight);
+      }
+      window.addEventListener('resize', setAppHeight);
+      setAppHeight();
+    </script>
   </body>
 </html>
