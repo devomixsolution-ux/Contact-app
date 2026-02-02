@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Save, User as UserIcon, Phone, List, Hash, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Save, User as UserIcon, Phone, List, Hash, AlertCircle, Loader2 } from 'lucide-react';
 import { supabase } from '../supabase';
 import { Student, Class, Language } from '../types';
 import { t } from '../translations';
@@ -32,47 +32,26 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
     if (data) setClasses(data);
   };
 
-  const validatePhone = (num: string) => {
-    const bdPhoneRegex = /^01[3-9]\d{8}$/;
-    return bdPhoneRegex.test(num);
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setPhoneError('');
-
     if (!name || !phone || !classId) return;
-
-    if (!validatePhone(phone)) {
-      setPhoneError(t('invalid_phone', lang));
-      return;
-    }
-
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-
       const payload = {
-        student_name: name,
+        student_name: name.trim(),
         roll: roll ? parseInt(roll) : null,
-        guardian_phone: phone,
+        guardian_phone: phone.trim(),
         class_id: classId,
         madrasah_id: user.id
       };
-
       if (isEditing && student) {
-        const { error } = await supabase
-          .from('students')
-          .update(payload)
-          .eq('id', student.id);
-        if (!error) onSuccess();
+        await supabase.from('students').update(payload).eq('id', student.id);
       } else {
-        const { error } = await supabase
-          .from('students')
-          .insert(payload);
-        if (!error) onSuccess();
+        await supabase.from('students').insert(payload);
       }
+      onSuccess();
     } catch (err) {
       console.error(err);
     } finally {
@@ -81,86 +60,73 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
   };
 
   return (
-    <div className="animate-in slide-in-from-bottom-4 duration-300">
-      <div className="flex items-center gap-3 mb-8">
-        <button onClick={onCancel} className="p-2 -ml-2 text-slate-600 active:scale-90 transition-transform">
-          <ArrowLeft size={24} />
+    <div className="animate-in slide-in-from-bottom-8 duration-500 pb-10">
+      <div className="flex items-center gap-4 mb-8">
+        <button onClick={onCancel} className="p-3 bg-white/10 rounded-2xl text-white active:scale-90 transition-all border border-white/20 backdrop-blur-md">
+          <ArrowLeft size={24} strokeWidth={2.5} />
         </button>
-        <h1 className="text-2xl font-bold text-slate-800">
+        <h1 className="text-2xl font-black text-white drop-shadow-sm">
           {isEditing ? t('edit_student', lang) : t('add_student', lang)}
         </h1>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-6">
-          <div className="grid grid-cols-3 gap-4">
-            <div className="col-span-2">
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-600 mb-2">
-                <UserIcon size={16} />
+      <form onSubmit={handleSubmit} className="space-y-8">
+        <div className="bg-white/15 backdrop-blur-xl p-8 rounded-[3rem] border border-white/20 shadow-2xl space-y-8">
+          <div className="grid grid-cols-3 gap-6">
+            <div className="col-span-2 space-y-2">
+              <label className="flex items-center gap-2 text-[10px] font-black text-white/60 uppercase tracking-widest px-1">
+                <UserIcon size={14} />
                 {t('student_name', lang)}
               </label>
               <input
                 type="text"
                 required
-                placeholder={t('student_name', lang)}
-                className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none text-lg text-slate-900"
+                className="w-full px-6 py-5 bg-white/10 border border-white/20 rounded-3xl outline-none text-white font-bold focus:bg-white/20 transition-all"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
             </div>
-            <div className="col-span-1">
-              <label className="flex items-center gap-2 text-sm font-semibold text-slate-600 mb-2">
-                <Hash size={16} />
+            <div className="col-span-1 space-y-2">
+              <label className="flex items-center gap-2 text-[10px] font-black text-white/60 uppercase tracking-widest px-1">
+                <Hash size={14} />
                 {t('roll', lang)}
               </label>
               <input
                 type="number"
-                placeholder={t('roll', lang)}
-                className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none text-lg text-slate-900"
+                className="w-full px-4 py-5 bg-white/10 border border-white/20 rounded-3xl outline-none text-white font-bold focus:bg-white/20 transition-all text-center"
                 value={roll}
                 onChange={(e) => setRoll(e.target.value)}
               />
             </div>
           </div>
 
-          <div>
-            <label className="flex items-center gap-2 text-sm font-semibold text-slate-600 mb-2">
-              <Phone size={16} />
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-[10px] font-black text-white/60 uppercase tracking-widest px-1">
+              <Phone size={14} />
               {t('guardian_phone', lang)}
             </label>
             <input
               type="tel"
               required
               maxLength={11}
-              placeholder="017xxxxxxxx"
-              className={`w-full px-4 py-4 bg-slate-50 border ${phoneError ? 'border-red-500 focus:ring-red-500' : 'border-slate-200 focus:ring-emerald-500'} rounded-2xl outline-none text-lg text-slate-900`}
+              className="w-full px-6 py-5 bg-white/10 border border-white/20 rounded-3xl outline-none text-white font-bold focus:bg-white/20 transition-all tracking-wider"
               value={phone}
-              onChange={(e) => {
-                const val = e.target.value.replace(/\D/g, '');
-                if (val.length <= 11) setPhone(val);
-                if (phoneError) setPhoneError('');
-              }}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
             />
-            {phoneError && (
-              <p className="mt-2 text-xs text-red-500 flex items-center gap-1 font-medium">
-                <AlertCircle size={14} />
-                {phoneError}
-              </p>
-            )}
           </div>
 
-          <div>
-            <label className="flex items-center gap-2 text-sm font-semibold text-slate-600 mb-2">
-              <List size={16} />
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-[10px] font-black text-white/60 uppercase tracking-widest px-1">
+              <List size={14} />
               {t('class_select', lang)}
             </label>
             <select
               required
-              className="w-full px-4 py-4 bg-slate-50 border border-slate-200 rounded-2xl focus:ring-2 focus:ring-emerald-500 outline-none text-lg appearance-none text-slate-900"
+              className="w-full px-6 py-5 bg-white/10 border border-white/20 rounded-3xl outline-none text-white font-bold focus:bg-white/20 transition-all appearance-none"
               value={classId}
               onChange={(e) => setClassId(e.target.value)}
             >
-              <option value="" className="text-slate-400">{t('class_choose', lang)}</option>
+              <option value="" className="text-slate-900">{t('class_choose', lang)}</option>
               {classes.map(cls => (
                 <option key={cls.id} value={cls.id} className="text-slate-900">{cls.class_name}</option>
               ))}
@@ -171,10 +137,9 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
         <button
           type="submit"
           disabled={loading}
-          className="w-full flex items-center justify-center gap-3 py-5 bg-emerald-600 text-white font-bold rounded-3xl shadow-xl shadow-emerald-200 active:scale-95 transition-transform disabled:opacity-50"
+          className="w-full py-6 bg-white text-[#d35132] font-black rounded-[2.5rem] shadow-2xl active:scale-95 transition-all text-lg flex items-center justify-center gap-3"
         >
-          <Save size={24} />
-          {loading ? t('saving', lang) : t('save', lang)}
+          {loading ? <Loader2 className="animate-spin" size={24} /> : <><Save size={24} strokeWidth={3} /> {t('save', lang)}</>}
         </button>
       </form>
     </div>
