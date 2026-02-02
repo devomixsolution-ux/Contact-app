@@ -19,6 +19,7 @@ export interface Class {
 export interface Student {
   id: string;
   student_name: string;
+  guardian_name?: string;
   roll?: number;
   guardian_phone: string;
   class_id: string;
