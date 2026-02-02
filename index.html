@@ -18,14 +18,18 @@
         padding: 0;
         overflow: hidden;
         background-color: #d35132;
+        overscroll-behavior: none; /* Prevents pull-to-refresh and bouncing */
+        position: fixed; /* Prevents entire page from shifting on keyboard */
+        width: 100%;
       }
       body {
         font-family: 'Hind Siliguri', 'Noto Sans Bengali', sans-serif;
         -webkit-tap-highlight-color: transparent;
-        font-size: 16px; /* Increased base size */
+        font-size: 16px;
       }
       #root {
         height: 100%;
+        width: 100%;
       }
       .no-select {
         -webkit-touch-callout: none;
