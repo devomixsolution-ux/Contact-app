@@ -13,20 +13,20 @@ interface StudentDetailsProps {
 }
 
 const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack, lang }) => {
-  const recordCall = async () => {
+  const recordCall = async (phoneNumber: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
     await supabase.from('recent_calls').insert({
       student_id: student.id,
-      guardian_phone: student.guardian_phone,
+      guardian_phone: phoneNumber,
       madrasah_id: user.id
     });
   };
 
-  const initiateCall = async () => {
-    await recordCall();
-    window.location.href = `tel:${student.guardian_phone}`;
+  const initiateCall = async (phoneNumber: string) => {
+    await recordCall(phoneNumber);
+    window.location.href = `tel:${phoneNumber}`;
   };
 
   return (
@@ -55,7 +55,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
           {student.guardian_name && (
             <div className="flex items-center gap-6 p-6 bg-white/10 rounded-[2.5rem] border border-white/15 shadow-inner">
               <div className="p-3 bg-white/10 rounded-2xl text-white/60"><UserCheck size={28} /></div>
-              <div>
+              <div className="flex-1">
                 <p className="text-[12px] text-white/50 uppercase font-black tracking-[0.2em] mb-0.5">{t('guardian_name', lang)}</p>
                 <p className="text-2xl font-black text-white">{student.guardian_name}</p>
               </div>
@@ -63,23 +63,42 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
           )}
           <div className="flex items-center gap-6 p-6 bg-white/10 rounded-[2.5rem] border border-white/15 shadow-inner">
             <div className="p-3 bg-white/10 rounded-2xl text-white/60"><Hash size={28} /></div>
-            <div>
+            <div className="flex-1">
               <p className="text-[12px] text-white/50 uppercase font-black tracking-[0.2em] mb-0.5">{t('roll', lang)}</p>
               <p className="text-2xl font-black text-white">{student.roll || '-'}</p>
             </div>
           </div>
-          <div className="flex items-center gap-6 p-6 bg-white/10 rounded-[2.5rem] border border-white/15 shadow-inner">
-            <div className="p-3 bg-white/10 rounded-2xl text-white/60"><Smartphone size={28} /></div>
-            <div>
+          
+          {/* Primary Phone Section */}
+          <div className="flex items-center gap-6 p-6 bg-white/15 rounded-[2.5rem] border border-white/20 shadow-xl group active:bg-white/20 transition-all" onClick={() => initiateCall(student.guardian_phone)}>
+            <div className="p-3 bg-white/20 rounded-2xl text-white"><Smartphone size={28} /></div>
+            <div className="flex-1">
               <p className="text-[12px] text-white/50 uppercase font-black tracking-[0.2em] mb-0.5">{t('guardian_phone', lang)}</p>
               <p className="text-2xl font-black text-white tracking-widest">{student.guardian_phone}</p>
             </div>
+            <div className="bg-white text-[#d35132] p-3 rounded-2xl shadow-lg">
+              <Phone size={20} strokeWidth={3} />
+            </div>
           </div>
+
+          {/* Secondary Phone Section (Optional) */}
+          {student.guardian_phone_2 && (
+            <div className="flex items-center gap-6 p-6 bg-white/15 rounded-[2.5rem] border border-white/20 shadow-xl group active:bg-white/20 transition-all" onClick={() => initiateCall(student.guardian_phone_2!)}>
+              <div className="p-3 bg-white/20 rounded-2xl text-white"><Smartphone size={28} /></div>
+              <div className="flex-1">
+                <p className="text-[12px] text-white/50 uppercase font-black tracking-[0.2em] mb-0.5">{t('guardian_phone_2', lang)}</p>
+                <p className="text-2xl font-black text-white tracking-widest">{student.guardian_phone_2}</p>
+              </div>
+              <div className="bg-white text-[#d35132] p-3 rounded-2xl shadow-lg">
+                <Phone size={20} strokeWidth={3} />
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="grid grid-cols-1 gap-5 pt-4">
           <button 
-            onClick={initiateCall}
+            onClick={() => initiateCall(student.guardian_phone)}
             className="flex items-center justify-center gap-4 py-7 px-8 bg-white text-[#d35132] font-black rounded-[2.5rem] shadow-[0_25px_60px_rgba(0,0,0,0.25)] active:scale-95 transition-all text-2xl font-noto"
           >
             <Phone size={28} strokeWidth={3} />
