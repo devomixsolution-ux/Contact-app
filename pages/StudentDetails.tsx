@@ -2,7 +2,6 @@
 import React from 'react';
 import { ArrowLeft, Phone, Edit3, User as UserIcon, Book, Smartphone, Hash } from 'lucide-react';
 import { Student, Language } from '../types';
-import { supabase } from '../supabase';
 import { t } from '../translations';
 
 interface StudentDetailsProps {
@@ -14,77 +13,62 @@ interface StudentDetailsProps {
 
 const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack, lang }) => {
   const initiateCall = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from('recent_calls').insert({
-        student_id: student.id,
-        guardian_phone: student.guardian_phone,
-        madrasah_id: user.id
-      });
-    }
     window.location.href = `tel:${student.guardian_phone}`;
   };
 
   return (
-    <div className="animate-in slide-in-from-right-4 duration-300">
-      <div className="flex items-center gap-3 mb-8">
-        <button onClick={onBack} className="p-2 -ml-2 text-slate-600 active:scale-90 transition-transform">
-          <ArrowLeft size={24} />
+    <div className="animate-in slide-in-from-right-4 duration-500 pb-12">
+      <div className="flex items-center gap-5 mb-10">
+        <button onClick={onBack} className="p-4 bg-white/10 rounded-[1.5rem] text-white active:scale-90 transition-all border border-white/25 backdrop-blur-md shadow-lg">
+          <ArrowLeft size={28} strokeWidth={3} />
         </button>
-        <h1 className="text-2xl font-bold text-slate-800">{t('student_info', lang)}</h1>
+        <h1 className="text-3xl font-black text-white drop-shadow-lg font-noto">{t('student_info', lang)}</h1>
       </div>
 
-      <div className="bg-white rounded-3xl p-8 border border-slate-100 shadow-sm space-y-8 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-32 h-32 bg-emerald-50 rounded-bl-full -mr-8 -mt-8 opacity-50"></div>
+      <div className="bg-white/20 backdrop-blur-2xl rounded-[4rem] p-10 border border-white/30 shadow-[0_40px_80px_rgba(0,0,0,0.2)] space-y-12 relative overflow-hidden">
+        <div className="absolute top-0 right-0 w-56 h-56 bg-white/10 rounded-bl-full -mr-16 -mt-16 blur-3xl"></div>
         
-        <div className="flex flex-col items-center text-center gap-4 relative">
-          <div className="bg-emerald-100 text-emerald-600 p-6 rounded-full">
-            <UserIcon size={48} />
+        <div className="flex flex-col items-center text-center gap-6 relative">
+          <div className="bg-white/25 text-white p-10 rounded-full border-2 border-white/40 shadow-2xl scale-110">
+            <UserIcon size={80} strokeWidth={1.5} />
           </div>
           <div>
-            <h2 className="text-2xl font-bold text-slate-900">{student.student_name}</h2>
-            <p className="text-emerald-600 font-medium">{student.classes?.class_name || 'N/A'}</p>
+            <h2 className="text-4xl font-black text-white tracking-tighter leading-tight font-noto drop-shadow-md">{student.student_name}</h2>
+            <p className="text-white/80 font-black uppercase tracking-[0.3em] text-[13px] mt-3 bg-white/15 px-5 py-1.5 rounded-full inline-block">{student.classes?.class_name || 'N/A'}</p>
           </div>
         </div>
 
-        <div className="space-y-4">
-          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
-            <Hash className="text-slate-400" size={24} />
+        <div className="space-y-5">
+          <div className="flex items-center gap-6 p-6 bg-white/10 rounded-[2.5rem] border border-white/15 shadow-inner">
+            <div className="p-3 bg-white/10 rounded-2xl text-white/60"><Hash size={28} /></div>
             <div>
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">{t('roll', lang)}</p>
-              <p className="text-lg font-bold text-slate-800">{student.roll || '-'}</p>
+              <p className="text-[12px] text-white/50 uppercase font-black tracking-[0.2em] mb-0.5">{t('roll', lang)}</p>
+              <p className="text-2xl font-black text-white">{student.roll || '-'}</p>
             </div>
           </div>
-          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
-            <Smartphone className="text-slate-400" size={24} />
+          <div className="flex items-center gap-6 p-6 bg-white/10 rounded-[2.5rem] border border-white/15 shadow-inner">
+            <div className="p-3 bg-white/10 rounded-2xl text-white/60"><Smartphone size={28} /></div>
             <div>
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">{t('guardian_phone', lang)}</p>
-              <p className="text-lg font-bold text-slate-800">{student.guardian_phone}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-2xl">
-            <Book className="text-slate-400" size={24} />
-            <div>
-              <p className="text-[10px] text-slate-400 uppercase font-semibold">{lang === 'bn' ? 'শ্রেণী' : 'Class'}</p>
-              <p className="text-lg font-bold text-slate-800">{student.classes?.class_name || '-'}</p>
+              <p className="text-[12px] text-white/50 uppercase font-black tracking-[0.2em] mb-0.5">{t('guardian_phone', lang)}</p>
+              <p className="text-2xl font-black text-white tracking-widest">{student.guardian_phone}</p>
             </div>
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4 pt-4">
-          <button 
-            onClick={onEdit}
-            className="flex items-center justify-center gap-2 py-4 px-6 bg-slate-100 text-slate-700 font-bold rounded-2xl active:scale-95 transition-transform"
-          >
-            <Edit3 size={20} />
-            {t('edit', lang)}
-          </button>
+        <div className="grid grid-cols-1 gap-5 pt-4">
           <button 
             onClick={initiateCall}
-            className="flex items-center justify-center gap-2 py-4 px-6 bg-emerald-600 text-white font-bold rounded-2xl shadow-lg shadow-emerald-200 active:scale-95 transition-transform"
+            className="flex items-center justify-center gap-4 py-7 px-8 bg-white text-[#d35132] font-black rounded-[2.5rem] shadow-[0_25px_60px_rgba(0,0,0,0.25)] active:scale-95 transition-all text-2xl font-noto"
           >
-            <Phone size={20} />
+            <Phone size={28} strokeWidth={3} />
             {t('call_now', lang)}
+          </button>
+          <button 
+            onClick={onEdit}
+            className="flex items-center justify-center gap-3 py-6 px-6 bg-white/15 text-white font-black rounded-[2.5rem] border border-white/30 active:scale-95 transition-all text-xl"
+          >
+            <Edit3 size={24} strokeWidth={2.5} />
+            {t('edit', lang)}
           </button>
         </div>
       </div>
