@@ -30,16 +30,31 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
     window.location.href = `tel:${phoneNumber}`;
   };
 
-  const handleDelete = async () => {
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+
     if (window.confirm(t('confirm_delete', lang))) {
       setIsDeleting(true);
       try {
-        const { error } = await supabase.from('students').delete().eq('id', student.id);
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error('Session not found');
+
+        // Explicitly delete based on both student id and madrasah id for RLS compliance
+        const { error } = await supabase
+          .from('students')
+          .delete()
+          .eq('id', student.id)
+          .eq('madrasah_id', user.id);
+
         if (error) throw error;
-        onBack(); // Go back to the list after deletion
-      } catch (err) {
-        console.error(err);
-        alert('Could not delete student');
+        
+        // Return to previous view after successful deletion
+        onBack();
+      } catch (err: any) {
+        console.error('Delete error:', err);
+        alert(lang === 'bn' ? 'দুঃখিত, ডিলিট করা সম্ভব হয়নি। আবার চেষ্টা করুন।' : 'Could not delete student. Please try again.');
+      } finally {
         setIsDeleting(false);
       }
     }
@@ -55,7 +70,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
           <button 
             onClick={handleDelete}
             disabled={isDeleting}
-            className="p-2.5 bg-red-500/20 text-red-200 rounded-xl active:scale-90 transition-all border border-red-500/20"
+            className="p-2.5 bg-red-500/20 text-red-200 rounded-xl active:scale-90 transition-all border border-red-500/20 disabled:opacity-50"
           >
             {isDeleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
           </button>
