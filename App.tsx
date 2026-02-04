@@ -120,6 +120,8 @@ const App: React.FC = () => {
     return <Auth lang={lang} />;
   }
 
+  const isSuperAdmin = madrasah?.is_super_admin === true;
+
   return (
     <div className="relative h-full w-full">
       {!isOnline && (
@@ -130,54 +132,61 @@ const App: React.FC = () => {
       )}
       <Layout currentView={view} setView={setView} lang={lang} madrasah={madrasah}>
         {view === 'home' && (
-          <Home onStudentClick={navigateToStudentDetails} lang={lang} />
+          isSuperAdmin ? (
+            <AdminPanel lang={lang} isStandalone={true} />
+          ) : (
+            <Home onStudentClick={navigateToStudentDetails} lang={lang} />
+          )
         )}
-        {view === 'classes' && (
-          <Classes onClassClick={navigateToStudents} lang={lang} />
+        
+        {!isSuperAdmin && (
+          <>
+            {view === 'classes' && (
+              <Classes onClassClick={navigateToStudents} lang={lang} />
+            )}
+            {view === 'students' && selectedClass && (
+              <Students 
+                selectedClass={selectedClass} 
+                onStudentClick={navigateToStudentDetails} 
+                onAddClick={() => navigateToStudentForm()}
+                onBack={() => setView('classes')}
+                lang={lang}
+              />
+            )}
+            {view === 'student-details' && selectedStudent && (
+              <StudentDetails 
+                student={selectedStudent} 
+                onEdit={() => navigateToStudentForm(selectedStudent)}
+                onBack={() => setView(selectedClass ? 'students' : 'home')}
+                lang={lang}
+              />
+            )}
+            {view === 'student-form' && (
+              <StudentForm 
+                student={selectedStudent} 
+                defaultClassId={selectedClass?.id}
+                isEditing={isEditing} 
+                onSuccess={() => {
+                  if (session) fetchMadrasahProfile(session.user.id);
+                  setView(selectedClass ? 'students' : 'home');
+                }}
+                onCancel={() => {
+                  setView(selectedStudent ? 'student-details' : 'students');
+                }}
+                lang={lang}
+              />
+            )}
+          </>
         )}
-        {view === 'students' && selectedClass && (
-          <Students 
-            selectedClass={selectedClass} 
-            onStudentClick={navigateToStudentDetails} 
-            onAddClick={() => navigateToStudentForm()}
-            onBack={() => setView('classes')}
-            lang={lang}
-          />
-        )}
-        {view === 'student-details' && selectedStudent && (
-          <StudentDetails 
-            student={selectedStudent} 
-            onEdit={() => navigateToStudentForm(selectedStudent)}
-            onBack={() => setView(selectedClass ? 'students' : 'home')}
-            lang={lang}
-          />
-        )}
-        {view === 'student-form' && (
-          <StudentForm 
-            student={selectedStudent} 
-            defaultClassId={selectedClass?.id}
-            isEditing={isEditing} 
-            onSuccess={() => {
-              if (session) fetchMadrasahProfile(session.user.id);
-              setView(selectedClass ? 'students' : 'home');
-            }}
-            onCancel={() => {
-              setView(selectedStudent ? 'student-details' : 'students');
-            }}
-            lang={lang}
-          />
-        )}
+
         {view === 'account' && (
           <Account 
             lang={lang} 
             setLang={changeLanguage} 
             onProfileUpdate={() => session && fetchMadrasahProfile(session.user.id)}
             setView={setView}
-            isSuperAdmin={madrasah?.is_super_admin}
+            isSuperAdmin={isSuperAdmin}
           />
-        )}
-        {view === 'admin-panel' && madrasah?.is_super_admin && (
-          <AdminPanel lang={lang} onBack={() => setView('account')} />
         )}
       </Layout>
     </div>
