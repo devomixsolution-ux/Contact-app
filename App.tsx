@@ -9,8 +9,10 @@ import Students from './pages/Students';
 import StudentDetails from './pages/StudentDetails';
 import StudentForm from './pages/StudentForm';
 import Account from './pages/Account';
+import AdminPanel from './pages/AdminPanel';
 import { View, Class, Student, Language, Madrasah } from './types';
-import { WifiOff } from 'lucide-react';
+import { WifiOff, AlertCircle } from 'lucide-react';
+import { t } from './translations';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
@@ -52,25 +54,31 @@ const App: React.FC = () => {
   }, []);
 
   const fetchMadrasahProfile = async (userId: string) => {
-    // Try to get from local storage first for instant load
-    const cachedProfile = localStorage.getItem(`profile_${userId}`);
-    if (cachedProfile) {
-      const parsed = JSON.parse(cachedProfile);
-      setMadrasah(parsed);
-    }
-
     if (navigator.onLine) {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('madrasahs')
         .select('*')
         .eq('id', userId)
         .single();
+      
       if (data) {
+        // SECURITY CHECK: If account is disabled, force logout
+        if (data.is_active === false) {
+          alert(t('account_disabled', lang));
+          await supabase.auth.signOut();
+          setMadrasah(null);
+          setSession(null);
+          return;
+        }
+
         setMadrasah(data);
         localStorage.setItem(`profile_${userId}`, JSON.stringify(data));
         localStorage.setItem('m_name', data.name);
         if (data.logo_url) localStorage.setItem('m_logo', data.logo_url);
       }
+    } else {
+      const cachedProfile = localStorage.getItem(`profile_${userId}`);
+      if (cachedProfile) setMadrasah(JSON.parse(cachedProfile));
     }
   };
 
@@ -150,7 +158,7 @@ const App: React.FC = () => {
             defaultClassId={selectedClass?.id}
             isEditing={isEditing} 
             onSuccess={() => {
-              fetchMadrasahProfile(session.user.id);
+              if (session) fetchMadrasahProfile(session.user.id);
               setView(selectedClass ? 'students' : 'home');
             }}
             onCancel={() => {
@@ -160,7 +168,16 @@ const App: React.FC = () => {
           />
         )}
         {view === 'account' && (
-          <Account lang={lang} setLang={changeLanguage} onProfileUpdate={() => fetchMadrasahProfile(session.user.id)} />
+          <Account 
+            lang={lang} 
+            setLang={changeLanguage} 
+            onProfileUpdate={() => session && fetchMadrasahProfile(session.user.id)}
+            setView={setView}
+            isSuperAdmin={madrasah?.is_super_admin}
+          />
+        )}
+        {view === 'admin-panel' && madrasah?.is_super_admin && (
+          <AdminPanel lang={lang} onBack={() => setView('account')} />
         )}
       </Layout>
     </div>
