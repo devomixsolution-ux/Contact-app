@@ -11,7 +11,7 @@ import StudentForm from './pages/StudentForm';
 import Account from './pages/Account';
 import AdminPanel from './pages/AdminPanel';
 import { View, Class, Student, Language, Madrasah } from './types';
-import { WifiOff, AlertCircle } from 'lucide-react';
+import { WifiOff } from 'lucide-react';
 import { t } from './translations';
 
 const App: React.FC = () => {
@@ -37,13 +37,17 @@ const App: React.FC = () => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session) fetchMadrasahProfile(session.user.id);
-      setLoading(false);
+      else setLoading(false);
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) fetchMadrasahProfile(session.user.id);
-      else setMadrasah(null);
+      else {
+        setMadrasah(null);
+        setView('home');
+        setLoading(false);
+      }
     });
 
     return () => {
@@ -54,73 +58,55 @@ const App: React.FC = () => {
   }, []);
 
   const fetchMadrasahProfile = async (userId: string) => {
-    if (navigator.onLine) {
+    try {
+      setLoading(true);
+      // Try to get profile
       const { data, error } = await supabase
         .from('madrasahs')
         .select('*')
         .eq('id', userId)
         .single();
       
-      if (data) {
-        // SECURITY CHECK: If account is disabled, force logout
-        if (data.is_active === false) {
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // Profile doesn't exist, try to create it
+          const { data: newData, error: createError } = await supabase
+            .from('madrasahs')
+            .insert([{ id: userId, name: 'নতুন মাদরাসা' }])
+            .select()
+            .single();
+          
+          if (newData) setMadrasah(newData);
+        } else {
+          console.error("Fetch error:", error);
+        }
+      } else if (data) {
+        if (data.is_active === false && !data.is_super_admin) {
           alert(t('account_disabled', lang));
           await supabase.auth.signOut();
-          setMadrasah(null);
-          setSession(null);
           return;
         }
-
         setMadrasah(data);
-        localStorage.setItem(`profile_${userId}`, JSON.stringify(data));
-        localStorage.setItem('m_name', data.name);
-        if (data.logo_url) localStorage.setItem('m_logo', data.logo_url);
       }
-    } else {
-      const cachedProfile = localStorage.getItem(`profile_${userId}`);
-      if (cachedProfile) setMadrasah(JSON.parse(cachedProfile));
+    } catch (e) {
+      console.error("Profile fetch error", e);
+    } finally {
+      setLoading(false);
     }
   };
 
-  const changeLanguage = (newLang: Language) => {
-    setLang(newLang);
-    localStorage.setItem('app_lang', newLang);
-  };
-
-  const navigateToStudents = (cls: Class) => {
-    setSelectedClass(cls);
-    setView('students');
-  };
-
-  const navigateToStudentDetails = (student: Student) => {
-    setSelectedStudent(student);
-    setView('student-details');
-  };
-
-  const navigateToStudentForm = (student?: Student) => {
-    if (student) {
-      setSelectedStudent(student);
-      setIsEditing(true);
-    } else {
-      setSelectedStudent(null);
-      setIsEditing(false);
-    }
-    setView('student-form');
-  };
+  const isSuperAdmin = madrasah?.is_super_admin === true;
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#d35132]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-[#d35132] text-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
+        <p className="font-black text-[10px] uppercase tracking-widest opacity-60">Initializing System...</p>
       </div>
     );
   }
 
-  if (!session) {
-    return <Auth lang={lang} />;
-  }
-
-  const isSuperAdmin = madrasah?.is_super_admin === true;
+  if (!session) return <Auth lang={lang} />;
 
   return (
     <div className="relative h-full w-full">
@@ -133,22 +119,22 @@ const App: React.FC = () => {
       <Layout currentView={view} setView={setView} lang={lang} madrasah={madrasah}>
         {view === 'home' && (
           isSuperAdmin ? (
-            <AdminPanel lang={lang} isStandalone={true} />
+            <AdminPanel lang={lang} />
           ) : (
-            <Home onStudentClick={navigateToStudentDetails} lang={lang} />
+            <Home onStudentClick={(s) => { setSelectedStudent(s); setView('student-details'); }} lang={lang} />
           )
         )}
         
         {!isSuperAdmin && (
           <>
             {view === 'classes' && (
-              <Classes onClassClick={navigateToStudents} lang={lang} />
+              <Classes onClassClick={(cls) => { setSelectedClass(cls); setView('students'); }} lang={lang} />
             )}
             {view === 'students' && selectedClass && (
               <Students 
                 selectedClass={selectedClass} 
-                onStudentClick={navigateToStudentDetails} 
-                onAddClick={() => navigateToStudentForm()}
+                onStudentClick={(s) => { setSelectedStudent(s); setView('student-details'); }} 
+                onAddClick={() => { setSelectedStudent(null); setIsEditing(false); setView('student-form'); }}
                 onBack={() => setView('classes')}
                 lang={lang}
               />
@@ -156,7 +142,7 @@ const App: React.FC = () => {
             {view === 'student-details' && selectedStudent && (
               <StudentDetails 
                 student={selectedStudent} 
-                onEdit={() => navigateToStudentForm(selectedStudent)}
+                onEdit={() => { setIsEditing(true); setView('student-form'); }}
                 onBack={() => setView(selectedClass ? 'students' : 'home')}
                 lang={lang}
               />
@@ -166,13 +152,8 @@ const App: React.FC = () => {
                 student={selectedStudent} 
                 defaultClassId={selectedClass?.id}
                 isEditing={isEditing} 
-                onSuccess={() => {
-                  if (session) fetchMadrasahProfile(session.user.id);
-                  setView(selectedClass ? 'students' : 'home');
-                }}
-                onCancel={() => {
-                  setView(selectedStudent ? 'student-details' : 'students');
-                }}
+                onSuccess={() => setView(selectedClass ? 'students' : 'home')}
+                onCancel={() => setView(selectedStudent ? 'student-details' : 'students')}
                 lang={lang}
               />
             )}
@@ -182,7 +163,7 @@ const App: React.FC = () => {
         {view === 'account' && (
           <Account 
             lang={lang} 
-            setLang={changeLanguage} 
+            setLang={(l) => { setLang(l); localStorage.setItem('app_lang', l); }} 
             onProfileUpdate={() => session && fetchMadrasahProfile(session.user.id)}
             setView={setView}
             isSuperAdmin={isSuperAdmin}
