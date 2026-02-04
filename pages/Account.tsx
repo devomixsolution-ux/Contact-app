@@ -1,17 +1,19 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Check, Smartphone, Copy, Camera, Loader2, Hash, AlertCircle } from 'lucide-react';
+import { LogOut, Check, Smartphone, Copy, Camera, Loader2, Hash, AlertCircle, ShieldCheck } from 'lucide-react';
 import { supabase } from '../supabase';
-import { Madrasah, Language } from '../types';
+import { Madrasah, Language, View } from '../types';
 import { t } from '../translations';
 
 interface AccountProps {
   lang: Language;
   setLang: (l: Language) => void;
   onProfileUpdate?: () => void;
+  setView: (view: View) => void;
+  isSuperAdmin?: boolean;
 }
 
-const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => {
+const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, setView, isSuperAdmin }) => {
   const [madrasah, setMadrasah] = useState<Madrasah | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -73,45 +75,26 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !madrasah) return;
-    
-    // Validate file size (max 2MB)
     if (file.size > 2 * 1024 * 1024) {
       alert('File too large. Max 2MB allowed.');
       return;
     }
-
     setUploading(true);
     setError('');
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${madrasah.id}/${Date.now()}.${fileExt}`;
-      
-      const { error: uploadError } = await supabase.storage
-        .from('logos')
-        .upload(fileName, file, { 
-          upsert: true,
-          contentType: file.type || 'image/jpeg'
-        });
-      
+      const { error: uploadError } = await supabase.storage.from('logos').upload(fileName, file, { upsert: true });
       if (uploadError) throw uploadError;
-
       const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(fileName);
-      
-      const { error: dbError } = await supabase
-        .from('madrasahs')
-        .update({ logo_url: publicUrl })
-        .eq('id', madrasah.id);
-      
+      const { error: dbError } = await supabase.from('madrasahs').update({ logo_url: publicUrl }).eq('id', madrasah.id);
       if (dbError) throw dbError;
-
       if (onProfileUpdate) onProfileUpdate();
       await fetchProfile();
     } catch (err: any) {
-      console.error('Upload error:', err);
-      setError(err.message || 'Upload failed. Please try again.');
+      setError(err.message || 'Upload failed');
     } finally {
       setUploading(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     }
   };
 
@@ -128,6 +111,24 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-500 pb-10">
       <h1 className="text-2xl font-black text-white drop-shadow-sm">{t('account', lang)}</h1>
 
+      {isSuperAdmin && (
+        <button 
+          onClick={() => setView('admin-panel')}
+          className="w-full bg-white/30 backdrop-blur-xl border border-white/40 p-5 rounded-[2rem] flex items-center justify-between group active:scale-95 transition-all shadow-xl"
+        >
+          <div className="flex items-center gap-4">
+            <div className="bg-white text-[#d35132] p-3 rounded-2xl shadow-lg">
+              <ShieldCheck size={24} />
+            </div>
+            <div className="text-left">
+              <h3 className="font-black text-white text-lg font-noto leading-tight">{t('admin_panel', lang)}</h3>
+              <p className="text-white/60 text-[10px] font-black uppercase tracking-wider">{lang === 'bn' ? 'সকল মাদরাসা ম্যানেজ করুন' : 'Manage all madrasahs'}</p>
+            </div>
+          </div>
+          <Check className="text-white/40 group-hover:text-white" size={20} />
+        </button>
+      )}
+
       <div className="bg-white/20 backdrop-blur-xl rounded-[3rem] p-8 border border-white/30 shadow-2xl space-y-8">
         {error && (
           <div className="bg-red-500/20 backdrop-blur-md border border-red-500/50 p-4 rounded-2xl flex items-center gap-3 text-white font-bold text-sm animate-shake">
@@ -137,15 +138,11 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
         )}
 
         <div className="flex flex-col items-center gap-5">
-          <div 
-            className="relative cursor-pointer group"
-            onClick={() => !uploading && fileInputRef.current?.click()}
-          >
+          <div className="relative cursor-pointer group" onClick={() => !uploading && fileInputRef.current?.click()}>
             <div className="bg-white/20 w-32 h-32 rounded-full flex items-center justify-center ring-8 ring-white/10 overflow-hidden border-2 border-white/50 shadow-2xl relative">
               {uploading ? (
                 <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center z-20">
                   <Loader2 className="animate-spin text-white" size={32} />
-                  <span className="text-[10px] text-white font-black mt-2 uppercase">Uploading...</span>
                 </div>
               ) : madrasah?.logo_url ? (
                 <img src={madrasah.logo_url} className="w-full h-full object-cover" alt="Logo" />
@@ -156,19 +153,10 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
             <div className="absolute -bottom-1 -right-1 bg-white text-[#d35132] p-2 rounded-full shadow-lg border border-white/50 group-active:scale-90 transition-transform z-30">
               <Camera size={18} />
             </div>
-            {/* Added id and name for better WebView support */}
-            <input 
-              type="file" 
-              ref={fileInputRef}
-              id="logo-upload"
-              name="logo-upload"
-              className="hidden" 
-              accept="image/*" 
-              onChange={handleFileUpload} 
-            />
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
           </div>
           <div className="text-center">
-            <h2 className="text-2xl font-black text-white leading-tight">{madrasah?.name}</h2>
+            <h2 className="text-2xl font-black text-white leading-tight font-noto">{madrasah?.name}</h2>
             <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mt-1">Profile Settings</p>
           </div>
         </div>
@@ -177,19 +165,8 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
           <div className="space-y-2">
             <label className="text-[10px] font-black text-white/50 uppercase tracking-widest px-1">{t('madrasah_id', lang)}</label>
             <div className="relative group">
-              <div className="absolute left-4 top-1/2 -translate-y-1/2 text-white/30">
-                <Hash size={18} />
-              </div>
-              <input
-                type="text"
-                readOnly
-                className="w-full pl-11 pr-14 py-5 bg-white/5 border border-white/10 rounded-3xl text-white/60 font-mono text-sm outline-none cursor-default"
-                value={madrasah?.id || 'Not available'}
-              />
-              <button 
-                onClick={copyUUID}
-                className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/10 p-3 rounded-2xl text-white/80 active:scale-90 transition-all hover:bg-white/20"
-              >
+              <input readOnly className="w-full pl-6 pr-14 py-5 bg-white/5 border border-white/10 rounded-3xl text-white/60 font-mono text-xs outline-none cursor-default" value={madrasah?.id || ''} />
+              <button onClick={copyUUID} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/10 p-3 rounded-2xl text-white active:scale-90 transition-all">
                 {copying ? <Check size={18} className="text-green-400" /> : <Copy size={18} />}
               </button>
             </div>
@@ -197,32 +174,16 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
 
           <div className="space-y-2">
             <label className="text-[10px] font-black text-white/50 uppercase tracking-widest px-1">{t('madrasah_name', lang)}</label>
-            <input
-              type="text"
-              className="w-full px-6 py-5 bg-white/10 border border-white/20 rounded-3xl text-white font-bold outline-none focus:bg-white/20 transition-all shadow-inner"
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-            />
+            <input type="text" className="w-full px-6 py-5 bg-white/10 border border-white/20 rounded-3xl text-white font-bold outline-none focus:bg-white/20 transition-all" value={newName} onChange={(e) => setNewName(e.target.value)} />
           </div>
           
           <div className="space-y-2">
             <label className="text-[10px] font-black text-white/50 uppercase tracking-widest px-1">{t('madrasah_phone', lang)}</label>
-            <input
-              type="tel"
-              className="w-full px-6 py-5 bg-white/10 border border-white/20 rounded-3xl text-white font-bold outline-none focus:bg-white/20 transition-all shadow-inner"
-              value={newPhone}
-              onChange={(e) => setNewPhone(e.target.value)}
-            />
+            <input type="tel" className="w-full px-6 py-5 bg-white/10 border border-white/20 rounded-3xl text-white font-bold outline-none focus:bg-white/20 transition-all" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
           </div>
 
-          <button 
-            onClick={handleUpdate}
-            disabled={saving}
-            className="w-full py-6 bg-white text-[#d35132] font-black rounded-[2rem] shadow-2xl active:scale-95 transition-all text-lg flex items-center justify-center gap-3"
-          >
-            {saving ? <Loader2 className="animate-spin" size={24} /> : showSuccess ? (
-              <><Check size={24} /> {t('success', lang)}</>
-            ) : t('update_info', lang)}
+          <button onClick={handleUpdate} disabled={saving} className="w-full py-6 bg-white text-[#d35132] font-black rounded-[2rem] shadow-2xl active:scale-95 transition-all text-lg flex items-center justify-center gap-3">
+            {saving ? <Loader2 className="animate-spin" size={24} /> : showSuccess ? <Check size={24} /> : t('update_info', lang)}
           </button>
         </div>
       </div>
@@ -232,17 +193,10 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate }) => 
         <button onClick={() => setLang('en')} className={`py-5 rounded-[2rem] font-black transition-all border shadow-lg ${lang === 'en' ? 'bg-white text-[#d35132] border-white' : 'bg-white/10 text-white border-white/20'}`}>English</button>
       </div>
 
-      <button
-        onClick={() => supabase.auth.signOut()}
-        className="w-full flex items-center justify-center gap-3 py-6 text-white font-black bg-red-500/20 backdrop-blur-md border border-red-500/30 rounded-[2rem] active:scale-95 transition-all shadow-xl"
-      >
+      <button onClick={() => supabase.auth.signOut()} className="w-full flex items-center justify-center gap-3 py-6 text-white font-black bg-red-500/20 backdrop-blur-md border border-red-500/30 rounded-[2rem] active:scale-95 transition-all shadow-xl">
         <LogOut size={24} />
         {t('logout', lang)}
       </button>
-
-      <div className="text-center pt-2">
-        <p className="text-white/30 text-[10px] font-black uppercase tracking-[0.4em]">{t('version', lang)}</p>
-      </div>
     </div>
   );
 };
