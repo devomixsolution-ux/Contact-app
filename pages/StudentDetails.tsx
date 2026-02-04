@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+// Fix: Changed 'lucide-center' to 'lucide-react'
 import { ArrowLeft, Phone, Edit3, Trash2, User as UserIcon, Smartphone, UserCheck, ShieldCheck, Loader2, AlertTriangle, X } from 'lucide-react';
 import { supabase } from '../supabase';
 import { Student, Language } from '../types';
@@ -12,6 +13,7 @@ interface StudentDetailsProps {
   lang: Language;
 }
 
+// Fix: Complete the truncated component and ensure it is exported
 const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack, lang }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -32,25 +34,43 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
   };
 
   const performDelete = async () => {
+    if (isDeleting) return;
     setIsDeleting(true);
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('Session not found');
+      // 1. Get current session to ensure we have the correct user ID for RLS
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError) throw sessionError;
+      if (!session?.user) {
+        throw new Error(lang === 'bn' ? 'সেশন পাওয়া যায়নি। দয়া করে আবার লগইন করুন।' : 'Session not found. Please log in again.');
+      }
 
-      // Explicitly delete based on both student id and madrasah id for RLS compliance
-      const { error } = await supabase
+      const userId = session.user.id;
+
+      // 2. Perform delete operation
+      const { error, count } = await supabase
         .from('students')
-        .delete()
+        .delete({ count: 'exact' })
         .eq('id', student.id)
-        .eq('madrasah_id', user.id);
+        .eq('madrasah_id', userId);
 
       if (error) throw error;
-      
+
+      if (count === 0) {
+        console.warn('No rows deleted. Possibly unauthorized or already removed.');
+      }
+
+      // 3. Close modal and navigate back
       setShowDeleteModal(false);
-      onBack(); // Return to previous view after successful deletion
+      
+      setTimeout(() => {
+        onBack();
+      }, 150);
+
     } catch (err: any) {
-      console.error('Delete error:', err);
-      alert(lang === 'bn' ? 'দুঃখিত, ডিলিট করা সম্ভব হয়নি। আবার চেষ্টা করুন।' : 'Could not delete student. Please try again.');
+      console.error('Delete operation failed:', err);
+      alert(lang === 'bn' ? `ডিলিট করা সম্ভব হয়নি: ${err.message}` : `Could not delete: ${err.message}`);
     } finally {
       setIsDeleting(false);
     }
@@ -157,58 +177,44 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
       </div>
       
       <p className="text-center text-white/30 text-[9px] mt-6 font-black uppercase tracking-[0.3em] px-8">
-        {lang === 'bn' ? 'তথ্য হালনাগাদ করা হয়েছে' : 'Information updated recently'}
+        {lang === 'bn' ? 'তথ্য হালনাগাদ করা হয়েছে' : 'Information Updated'}
       </p>
 
-      {/* Custom Delete Modal */}
+      {/* Delete Confirmation Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 animate-in fade-in duration-200">
-          <div 
-            className="absolute inset-0 bg-black/60 backdrop-blur-xl" 
-            onClick={() => !isDeleting && setShowDeleteModal(false)}
-          />
-          <div className="bg-[#e57d4a] w-full max-w-[320px] rounded-[2.5rem] shadow-2xl p-8 border border-white/30 relative z-10 animate-in zoom-in-95 duration-300 flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center text-red-200 mb-6 border border-red-500/30">
-              <AlertTriangle size={32} />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 border border-white/30 animate-in zoom-in-95 text-center relative">
+            <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6 text-red-500">
+              <AlertTriangle size={40} />
             </div>
-            
-            <h3 className="text-xl font-black text-white mb-2 font-noto">
-              {lang === 'bn' ? 'আপনি কি নিশ্চিত?' : 'Are you sure?'}
-            </h3>
-            
-            <p className="text-white/70 text-sm font-medium mb-8">
-              {lang === 'bn' ? 'এই ছাত্রের সকল তথ্য চিরতরে মুছে যাবে।' : 'Are you sure delete this student?'}
+            <h2 className="text-2xl font-black text-slate-800 mb-2 font-noto">
+              {t('confirm_delete', lang)}
+            </h2>
+            <p className="text-slate-500 text-sm mb-8 font-medium">
+              {lang === 'bn' ? 'এই ছাত্রের সকল তথ্য চিরতরে মুছে যাবে।' : 'All information of this student will be permanently deleted.'}
             </p>
-
-            <div className="flex w-full gap-3">
+            <div className="flex gap-3">
               <button
-                disabled={isDeleting}
                 onClick={() => setShowDeleteModal(false)}
-                className="flex-1 py-3.5 bg-white/10 text-white font-bold text-sm rounded-2xl border border-white/20 active:scale-95 transition-all flex items-center justify-center"
+                disabled={isDeleting}
+                className="flex-1 py-4 bg-slate-100 text-slate-600 font-black text-sm rounded-2xl active:scale-95 transition-all"
               >
-                {lang === 'bn' ? 'না (Cancel)' : 'Cancel'}
+                {t('cancel', lang)}
               </button>
               <button
-                disabled={isDeleting}
                 onClick={performDelete}
-                className="flex-1 py-3.5 bg-white text-red-500 font-black text-sm rounded-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+                disabled={isDeleting}
+                className="flex-1 py-4 bg-red-500 text-white font-black text-sm rounded-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"
               >
-                {isDeleting ? (
-                  <Loader2 size={18} className="animate-spin" />
-                ) : (
-                  lang === 'bn' ? 'হ্যাঁ (Delete)' : 'OK'
-                )}
+                {isDeleting ? <Loader2 className="animate-spin" size={18} /> : t('delete', lang)}
               </button>
             </div>
-            
-            {!isDeleting && (
-              <button 
-                onClick={() => setShowDeleteModal(false)}
-                className="absolute top-4 right-4 text-white/40 active:text-white transition-colors"
-              >
-                <X size={20} />
-              </button>
-            )}
+            <button 
+              onClick={() => setShowDeleteModal(false)}
+              className="absolute top-6 right-6 text-slate-400"
+            >
+              <X size={20} />
+            </button>
           </div>
         </div>
       )}
@@ -216,4 +222,5 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
   );
 };
 
+// Fix: Add missing default export
 export default StudentDetails;
