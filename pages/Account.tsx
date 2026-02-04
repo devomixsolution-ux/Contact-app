@@ -1,87 +1,186 @@
 
-import React from 'react';
-import { Home, Users, User, BookOpen } from 'lucide-react';
-import { View, Language, Madrasah } from '../types';
+import React, { useState, useEffect, useRef } from 'react';
+import { LogOut, Check, Smartphone, Copy, Camera, Loader2, Hash, AlertCircle, ShieldCheck } from 'lucide-react';
+import { supabase } from '../supabase';
+import { Madrasah, Language, View } from '../types';
 import { t } from '../translations';
 
-interface LayoutProps {
-  children: React.ReactNode;
-  currentView: View;
-  setView: (view: View) => void;
+interface AccountProps {
   lang: Language;
-  madrasah: Madrasah | null;
+  setLang: (l: Language) => void;
+  onProfileUpdate?: () => void;
+  setView: (view: View) => void;
+  isSuperAdmin?: boolean;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children, currentView, setView, lang, madrasah }) => {
-  const isTabActive = (tab: string) => {
-    if (tab === 'home' && currentView === 'home') return true;
-    if (tab === 'classes' && (currentView === 'classes' || currentView === 'students' || currentView === 'student-details' || currentView === 'student-form')) return true;
-    if (tab === 'account' && currentView === 'account') return true;
-    return false;
+const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, setView, isSuperAdmin }) => {
+  const [madrasah, setMadrasah] = useState<Madrasah | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [newPhone, setNewPhone] = useState('');
+  const [showSuccess, setShowSuccess] = useState(false);
+  const [copying, setCopying] = useState(false);
+  const [error, setError] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data, error: fetchError } = await supabase
+          .from('madrasahs')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        
+        if (fetchError) throw fetchError;
+        
+        if (data) {
+          setMadrasah(data);
+          setNewName(data.name);
+          setNewPhone(data.phone || '');
+        }
+      }
+    } catch (err: any) {
+      setError('Could not load profile');
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const isSuperAdmin = madrasah?.is_super_admin === true;
+  const handleUpdate = async () => {
+    if (!madrasah) return;
+    setSaving(true);
+    setError('');
+    try {
+      const { error: updateError } = await supabase.from('madrasahs').update({ name: newName.trim(), phone: newPhone.trim() }).eq('id', madrasah.id);
+      if (updateError) throw updateError;
+      
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 2000);
+      if (onProfileUpdate) onProfileUpdate();
+    } catch (err: any) {
+      setError(err.message || 'Update failed');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !madrasah) return;
+    if (file.size > 2 * 1024 * 1024) {
+      alert('File too large. Max 2MB allowed.');
+      return;
+    }
+    setUploading(true);
+    setError('');
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${madrasah.id}/${Date.now()}.${fileExt}`;
+      const { error: uploadError } = await supabase.storage.from('logos').upload(fileName, file, { upsert: true });
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(fileName);
+      const { error: dbError } = await supabase.from('madrasahs').update({ logo_url: publicUrl }).eq('id', madrasah.id);
+      if (dbError) throw dbError;
+      if (onProfileUpdate) onProfileUpdate();
+      await fetchProfile();
+    } catch (err: any) {
+      setError(err.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const copyUUID = () => {
+    if (!madrasah) return;
+    navigator.clipboard.writeText(madrasah.id);
+    setCopying(true);
+    setTimeout(() => setCopying(false), 2000);
+  };
+
+  if (loading) return <div className="py-20 flex justify-center"><Loader2 className="animate-spin text-white" size={40} /></div>;
 
   return (
-    <div 
-      className="flex flex-col overflow-hidden bg-gradient-to-br from-[#d35132] via-[#e57d4a] to-[#d35132] font-['Hind_Siliguri'] w-full"
-      style={{ height: 'var(--app-height, 100%)' }}
-    >
-      
-      {/* Refined Header */}
-      <header className="flex-none px-5 pt-[calc(env(safe-area-inset-top)+10px)] pb-3 flex items-center gap-3 z-50 border-b border-white/10 bg-white/10 backdrop-blur-md">
-        <div className="w-11 h-11 rounded-2xl flex items-center justify-center overflow-hidden border border-white/30 bg-white/20 shadow-lg shrink-0">
-          {madrasah?.logo_url ? (
-            <img src={madrasah.logo_url} className="w-full h-full object-cover" alt="Logo" />
-          ) : (
-            <BookOpen size={22} className="text-white" />
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-black text-white truncate leading-none tracking-tight font-noto">
-            {madrasah?.name || 'মাদরাসা কন্টাক্ট'}
-          </h1>
-          <p className="text-[10px] font-bold text-white/70 uppercase tracking-[0.1em] mt-1">
-            {isSuperAdmin ? (lang === 'bn' ? 'সুপার অ্যাডমিন' : 'Super Admin') : (lang === 'bn' ? 'অ্যাডমিন ড্যাশবোর্ড' : 'Admin Dashboard')}
-          </p>
-        </div>
-      </header>
+    <div className="space-y-6 animate-in slide-in-from-right-4 duration-500 pb-10">
+      <h1 className="text-2xl font-black text-white drop-shadow-sm">{t('account', lang)}</h1>
 
-      {/* Main Content Area */}
-      <main className="flex-1 overflow-y-auto px-4 pt-4 pb-24 w-full max-w-md mx-auto no-select scroll-smooth">
-        {children}
-      </main>
-
-      {/* Bottom Navigation */}
-      <nav className={`flex-none bg-white/10 backdrop-blur-2xl border-t border-white/10 flex ${isSuperAdmin ? 'justify-around' : 'justify-around'} items-center py-2 px-4 pb-[calc(env(safe-area-inset-bottom,12px)+8px)] z-50 shadow-[0_-10px_40px_rgba(0,0,0,0.1)]`}>
-        <button 
-          onClick={() => setView('home')}
-          className={`flex flex-col items-center gap-1 transition-all active:scale-90 p-1.5 ${isTabActive('home') ? 'text-white' : 'text-white/40'}`}
-        >
-          <Home size={22} strokeWidth={isTabActive('home') ? 2.5 : 2} />
-          <span className={`text-[10px] font-black uppercase tracking-wider ${isTabActive('home') ? 'opacity-100' : 'opacity-70'}`}>{t('home', lang)}</span>
-        </button>
-        
-        {!isSuperAdmin && (
-          <button 
-            onClick={() => setView('classes')}
-            className={`flex flex-col items-center gap-1 transition-all active:scale-90 p-1.5 ${isTabActive('classes') ? 'text-white' : 'text-white/40'}`}
-          >
-            <Users size={22} strokeWidth={isTabActive('classes') ? 2.5 : 2} />
-            <span className={`text-[10px] font-black uppercase tracking-wider ${isTabActive('classes') ? 'opacity-100' : 'opacity-70'}`}>{t('classes', lang)}</span>
-          </button>
+      <div className="bg-white/20 backdrop-blur-xl rounded-[3rem] p-8 border border-white/30 shadow-2xl space-y-8">
+        {error && (
+          <div className="bg-red-500/20 backdrop-blur-md border border-red-500/50 p-4 rounded-2xl flex items-center gap-3 text-white font-bold text-sm animate-shake">
+            <AlertCircle size={20} />
+            {error}
+          </div>
         )}
-        
-        <button 
-          onClick={() => setView('account')}
-          className={`flex flex-col items-center gap-1 transition-all active:scale-90 p-1.5 ${isTabActive('account') ? 'text-white' : 'text-white/40'}`}
-        >
-          <User size={22} strokeWidth={isTabActive('account') ? 2.5 : 2} />
-          <span className={`text-[10px] font-black uppercase tracking-wider ${isTabActive('account') ? 'opacity-100' : 'opacity-70'}`}>{t('account', lang)}</span>
-        </button>
-      </nav>
+
+        <div className="flex flex-col items-center gap-5">
+          <div className="relative cursor-pointer group" onClick={() => !uploading && fileInputRef.current?.click()}>
+            <div className="bg-white/20 w-32 h-32 rounded-full flex items-center justify-center ring-8 ring-white/10 overflow-hidden border-2 border-white/50 shadow-2xl relative">
+              {uploading ? (
+                <div className="absolute inset-0 bg-black/20 flex flex-col items-center justify-center z-20">
+                  <Loader2 className="animate-spin text-white" size={32} />
+                </div>
+              ) : madrasah?.logo_url ? (
+                <img src={madrasah.logo_url} className="w-full h-full object-cover" alt="Logo" />
+              ) : (
+                <Camera size={40} className="text-white/60" />
+              )}
+            </div>
+            <div className="absolute -bottom-1 -right-1 bg-white text-[#d35132] p-2 rounded-full shadow-lg border border-white/50 group-active:scale-90 transition-transform z-30">
+              <Camera size={18} />
+            </div>
+            <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
+          </div>
+          <div className="text-center">
+            <h2 className="text-2xl font-black text-white leading-tight font-noto">{madrasah?.name}</h2>
+            <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mt-1">Profile Settings</p>
+          </div>
+        </div>
+
+        <div className="space-y-5">
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-white/50 uppercase tracking-widest px-1">{t('madrasah_id', lang)}</label>
+            <div className="relative group">
+              <input readOnly className="w-full pl-6 pr-14 py-5 bg-white/5 border border-white/10 rounded-3xl text-white/60 font-mono text-xs outline-none cursor-default" value={madrasah?.id || ''} />
+              <button onClick={copyUUID} className="absolute right-2 top-1/2 -translate-y-1/2 bg-white/10 p-3 rounded-2xl text-white active:scale-90 transition-all">
+                {copying ? <Check size={18} className="text-green-400" /> : <Copy size={18} />}
+              </button>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-white/50 uppercase tracking-widest px-1">{t('madrasah_name', lang)}</label>
+            <input type="text" className="w-full px-6 py-5 bg-white/10 border border-white/20 rounded-3xl text-white font-bold outline-none focus:bg-white/20 transition-all" value={newName} onChange={(e) => setNewName(e.target.value)} />
+          </div>
+          
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-white/50 uppercase tracking-widest px-1">{t('madrasah_phone', lang)}</label>
+            <input type="tel" className="w-full px-6 py-5 bg-white/10 border border-white/20 rounded-3xl text-white font-bold outline-none focus:bg-white/20 transition-all" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
+          </div>
+
+          <button onClick={handleUpdate} disabled={saving} className="w-full py-6 bg-white text-[#d35132] font-black rounded-[2rem] shadow-2xl active:scale-95 transition-all text-lg flex items-center justify-center gap-3">
+            {saving ? <Loader2 className="animate-spin" size={24} /> : showSuccess ? <Check size={24} /> : t('update_info', lang)}
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <button onClick={() => setLang('bn')} className={`py-5 rounded-[2rem] font-black transition-all border shadow-lg ${lang === 'bn' ? 'bg-white text-[#d35132] border-white' : 'bg-white/10 text-white border-white/20'}`}>বাংলা</button>
+        <button onClick={() => setLang('en')} className={`py-5 rounded-[2rem] font-black transition-all border shadow-lg ${lang === 'en' ? 'bg-white text-[#d35132] border-white' : 'bg-white/10 text-white border-white/20'}`}>English</button>
+      </div>
+
+      <button onClick={() => supabase.auth.signOut()} className="w-full flex items-center justify-center gap-3 py-6 text-white font-black bg-red-500/20 backdrop-blur-md border border-red-500/30 rounded-[2rem] active:scale-95 transition-all shadow-xl">
+        <LogOut size={24} />
+        {t('logout', lang)}
+      </button>
     </div>
   );
 };
 
-export default Layout;
+export default Account;
