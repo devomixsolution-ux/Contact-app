@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ArrowLeft, Phone, Edit3, User as UserIcon, Smartphone, Hash, UserCheck } from 'lucide-react';
+import { ArrowLeft, Phone, Edit3, User as UserIcon, Smartphone, Hash, UserCheck, ShieldCheck } from 'lucide-react';
 import { supabase } from '../supabase';
 import { Student, Language } from '../types';
 import { t } from '../translations';
@@ -16,7 +16,6 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
   const recordCall = async (phoneNumber: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-
     await supabase.from('recent_calls').insert({
       student_id: student.id,
       guardian_phone: phoneNumber,
@@ -30,89 +29,100 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
   };
 
   return (
-    <div className="animate-in slide-in-from-right-4 duration-500 pb-12">
-      <div className="flex items-center gap-5 mb-10">
-        <button onClick={onBack} className="p-4 bg-white/10 rounded-[1.5rem] text-white active:scale-90 transition-all border border-white/25 backdrop-blur-md shadow-lg">
-          <ArrowLeft size={28} strokeWidth={3} />
+    <div className="animate-in slide-in-from-right-4 duration-500 pb-10">
+      <div className="flex items-center justify-between mb-6">
+        <button onClick={onBack} className="p-2.5 bg-white/10 rounded-xl text-white active:scale-90 transition-all border border-white/20 backdrop-blur-md">
+          <ArrowLeft size={22} strokeWidth={2.5} />
         </button>
-        <h1 className="text-3xl font-black text-white drop-shadow-lg font-noto">{t('student_info', lang)}</h1>
+        <button onClick={onEdit} className="flex items-center gap-2 px-4 py-2.5 bg-white/10 text-white font-bold rounded-xl border border-white/20 active:scale-90 transition-all text-sm">
+          <Edit3 size={16} />
+          {t('edit', lang)}
+        </button>
       </div>
 
-      <div className="bg-white/20 backdrop-blur-2xl rounded-[4rem] p-10 border border-white/30 shadow-[0_40px_80px_rgba(0,0,0,0.2)] space-y-12 relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-56 h-56 bg-white/10 rounded-bl-full -mr-16 -mt-16 blur-3xl"></div>
-        
-        <div className="flex flex-col items-center text-center gap-6 relative">
-          <div className="bg-white/25 text-white p-10 rounded-full border-2 border-white/40 shadow-2xl scale-110">
-            <UserIcon size={80} strokeWidth={1.5} />
+      <div className="bg-white/15 backdrop-blur-2xl rounded-[2.5rem] border border-white/20 shadow-2xl overflow-hidden">
+        {/* Profile Banner */}
+        <div className="bg-gradient-to-br from-white/10 to-transparent p-6 text-center border-b border-white/10 relative">
+          <div className="w-20 h-20 bg-white/20 rounded-full mx-auto flex items-center justify-center border-2 border-white/30 shadow-xl mb-4 text-white">
+            <UserIcon size={40} strokeWidth={1.5} />
           </div>
-          <div>
-            <h2 className="text-4xl font-black text-white tracking-tighter leading-tight font-noto drop-shadow-md">{student.student_name}</h2>
-            <p className="text-white/80 font-black uppercase tracking-[0.3em] text-[13px] mt-3 bg-white/15 px-5 py-1.5 rounded-full inline-block">{student.classes?.class_name || 'N/A'}</p>
+          <h2 className="text-xl font-black text-white font-noto tracking-tight drop-shadow-sm truncate px-4">{student.student_name}</h2>
+          <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 rounded-full mt-2 border border-white/10">
+            <ShieldCheck size={12} className="text-white/60" />
+            <span className="text-[10px] text-white font-black uppercase tracking-wider">{student.classes?.class_name || 'N/A'}</span>
           </div>
         </div>
 
-        <div className="space-y-4">
+        <div className="p-5 space-y-4">
+          {/* Info Grid */}
+          <div className="grid grid-cols-2 gap-3">
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/10 flex flex-col items-center text-center">
+              <span className="text-[9px] text-white/50 font-black uppercase tracking-widest mb-1">{t('roll', lang)}</span>
+              <span className="text-lg font-black text-white">{student.roll || '-'}</span>
+            </div>
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/10 flex flex-col items-center text-center">
+              <span className="text-[9px] text-white/50 font-black uppercase tracking-widest mb-1">{lang === 'bn' ? 'স্ট্যাটাস' : 'Status'}</span>
+              <span className="text-[10px] font-black text-green-400 uppercase tracking-widest flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                {lang === 'bn' ? 'সক্রিয়' : 'Active'}
+              </span>
+            </div>
+          </div>
+
           {student.guardian_name && (
-            <div className="flex items-center gap-6 p-6 bg-white/10 rounded-[2.5rem] border border-white/15 shadow-inner">
-              <div className="p-3 bg-white/10 rounded-2xl text-white/60"><UserCheck size={28} /></div>
-              <div className="flex-1">
-                <p className="text-[12px] text-white/50 uppercase font-black tracking-[0.2em] mb-0.5">{t('guardian_name', lang)}</p>
-                <p className="text-2xl font-black text-white">{student.guardian_name}</p>
+            <div className="bg-white/5 p-4 rounded-2xl border border-white/10 flex items-center gap-4">
+              <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white/60 shrink-0"><UserCheck size={20} /></div>
+              <div className="min-w-0">
+                <span className="text-[9px] text-white/50 font-black uppercase tracking-widest block leading-none mb-1">{t('guardian_name', lang)}</span>
+                <span className="text-base font-bold text-white truncate block">{student.guardian_name}</span>
               </div>
             </div>
           )}
-          <div className="flex items-center gap-6 p-6 bg-white/10 rounded-[2.5rem] border border-white/15 shadow-inner">
-            <div className="p-3 bg-white/10 rounded-2xl text-white/60"><Hash size={28} /></div>
-            <div className="flex-1">
-              <p className="text-[12px] text-white/50 uppercase font-black tracking-[0.2em] mb-0.5">{t('roll', lang)}</p>
-              <p className="text-2xl font-black text-white">{student.roll || '-'}</p>
-            </div>
-          </div>
-          
-          {/* Primary Phone Section */}
-          <div className="flex items-center gap-6 p-6 bg-white/15 rounded-[2.5rem] border border-white/20 shadow-xl group active:bg-white/20 transition-all" onClick={() => initiateCall(student.guardian_phone)}>
-            <div className="p-3 bg-white/20 rounded-2xl text-white"><Smartphone size={28} /></div>
-            <div className="flex-1">
-              <p className="text-[12px] text-white/50 uppercase font-black tracking-[0.2em] mb-0.5">{t('guardian_phone', lang)}</p>
-              <p className="text-2xl font-black text-white tracking-widest">{student.guardian_phone}</p>
-            </div>
-            <div className="bg-white text-[#d35132] p-3 rounded-2xl shadow-lg">
-              <Phone size={20} strokeWidth={3} />
-            </div>
-          </div>
 
-          {/* Secondary Phone Section (Optional) */}
-          {student.guardian_phone_2 && (
-            <div className="flex items-center gap-6 p-6 bg-white/15 rounded-[2.5rem] border border-white/20 shadow-xl group active:bg-white/20 transition-all" onClick={() => initiateCall(student.guardian_phone_2!)}>
-              <div className="p-3 bg-white/20 rounded-2xl text-white"><Smartphone size={28} /></div>
-              <div className="flex-1">
-                <p className="text-[12px] text-white/50 uppercase font-black tracking-[0.2em] mb-0.5">{t('guardian_phone_2', lang)}</p>
-                <p className="text-2xl font-black text-white tracking-widest">{student.guardian_phone_2}</p>
+          {/* Contact Actions */}
+          <div className="space-y-3 pt-2">
+            <label className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] px-1">{lang === 'bn' ? 'কল করার মাধ্যম' : 'Calling Options'}</label>
+            
+            <button 
+              onClick={() => initiateCall(student.guardian_phone)}
+              className="w-full bg-white p-4 rounded-2xl flex items-center justify-between active:scale-[0.98] transition-all shadow-xl group"
+            >
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 bg-[#d35132]/10 rounded-xl flex items-center justify-center text-[#d35132]"><Smartphone size={20} /></div>
+                <div className="text-left">
+                  <span className="text-[9px] text-slate-400 font-black uppercase tracking-widest block leading-none mb-1">{t('guardian_phone', lang)}</span>
+                  <span className="text-base font-black text-slate-800 tracking-wider leading-none">{student.guardian_phone}</span>
+                </div>
               </div>
-              <div className="bg-white text-[#d35132] p-3 rounded-2xl shadow-lg">
-                <Phone size={20} strokeWidth={3} />
+              <div className="bg-[#d35132] text-white p-2.5 rounded-xl group-active:rotate-12 transition-transform">
+                <Phone size={18} fill="currentColor" />
               </div>
-            </div>
-          )}
-        </div>
+            </button>
 
-        <div className="grid grid-cols-1 gap-5 pt-4">
-          <button 
-            onClick={() => initiateCall(student.guardian_phone)}
-            className="flex items-center justify-center gap-4 py-7 px-8 bg-white text-[#d35132] font-black rounded-[2.5rem] shadow-[0_25px_60px_rgba(0,0,0,0.25)] active:scale-95 transition-all text-2xl font-noto"
-          >
-            <Phone size={28} strokeWidth={3} />
-            {t('call_now', lang)}
-          </button>
-          <button 
-            onClick={onEdit}
-            className="flex items-center justify-center gap-3 py-6 px-6 bg-white/15 text-white font-black rounded-[2.5rem] border border-white/30 active:scale-95 transition-all text-xl"
-          >
-            <Edit3 size={24} strokeWidth={2.5} />
-            {t('edit', lang)}
-          </button>
+            {student.guardian_phone_2 && (
+              <button 
+                onClick={() => initiateCall(student.guardian_phone_2!)}
+                className="w-full bg-white/10 p-4 rounded-2xl flex items-center justify-between active:scale-[0.98] transition-all border border-white/10 group"
+              >
+                <div className="flex items-center gap-4">
+                  <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white/60"><Smartphone size={20} /></div>
+                  <div className="text-left">
+                    <span className="text-[9px] text-white/40 font-black uppercase tracking-widest block leading-none mb-1">{t('guardian_phone_2', lang)}</span>
+                    <span className="text-base font-bold text-white tracking-wider leading-none">{student.guardian_phone_2}</span>
+                  </div>
+                </div>
+                <div className="bg-white text-[#d35132] p-2.5 rounded-xl shadow-lg">
+                  <Phone size={18} fill="currentColor" />
+                </div>
+              </button>
+            )}
+          </div>
         </div>
       </div>
+      
+      <p className="text-center text-white/30 text-[9px] mt-6 font-black uppercase tracking-[0.3em] px-8">
+        {lang === 'bn' ? 'তথ্য হালনাগাদ করা হয়েছে' : 'Information updated recently'}
+      </p>
     </div>
   );
 };
