@@ -67,23 +67,23 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
 
   return (
     <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-      <div className="flex flex-col gap-6">
-        <div className="flex items-center gap-4">
-          <button onClick={onBack} className="p-3 bg-white/10 rounded-2xl text-white active:scale-90 transition-all border border-white/20 backdrop-blur-md">
-            <ArrowLeft size={24} strokeWidth={2.5} />
+      <div className="flex flex-col gap-5">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="p-2.5 bg-white/10 rounded-xl text-white active:scale-90 transition-all border border-white/20 backdrop-blur-md">
+            <ArrowLeft size={22} strokeWidth={2.5} />
           </button>
           <div className="min-w-0">
-            <h1 className="text-2xl font-black text-white truncate drop-shadow-sm">{selectedClass.class_name}</h1>
-            <p className="text-[11px] font-black text-white/60 uppercase tracking-widest">{students.length} {t('students_count', lang)}</p>
+            <h1 className="text-xl font-black text-white truncate drop-shadow-sm">{selectedClass.class_name}</h1>
+            <p className="text-[10px] font-black text-white/60 uppercase tracking-widest">{students.length} {t('students_count', lang)}</p>
           </div>
         </div>
 
         <div className="relative">
-          <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-white/50" size={20} />
+          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-white/50" size={18} />
           <input
             type="text"
             placeholder={t('search_placeholder', lang)}
-            className="w-full pl-14 pr-6 py-4 bg-white/20 backdrop-blur-md border border-white/30 rounded-full outline-none text-white placeholder:text-white/50 font-bold focus:bg-white/30 transition-all shadow-xl"
+            className="w-full pl-11 pr-5 py-3.5 bg-white/15 backdrop-blur-md border border-white/20 rounded-2xl outline-none text-white placeholder:text-white/40 font-bold text-sm focus:bg-white/25 transition-all shadow-lg"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
@@ -97,25 +97,27 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
           ))}
         </div>
       ) : filteredStudents.length > 0 ? (
-        <div className="space-y-4">
+        <div className="space-y-3 pb-24">
           {filteredStudents.map(student => (
             <div 
               key={student.id} 
               onClick={() => onStudentClick(student)}
-              className="bg-white/15 backdrop-blur-md p-5 rounded-[2rem] border border-white/20 shadow-lg flex items-center justify-between active:bg-white/30 transition-all animate-in slide-in-from-bottom-2"
+              className="bg-white/10 backdrop-blur-md p-4 rounded-[2rem] border border-white/15 shadow-lg flex items-center justify-between active:bg-white/20 transition-all animate-in slide-in-from-bottom-2"
             >
-              <div className="flex items-center gap-4">
-                <div className="bg-white/20 w-12 h-12 rounded-2xl flex items-center justify-center text-white font-black text-sm border border-white/10">
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="bg-white/15 w-10 h-10 rounded-xl flex items-center justify-center text-white/80 font-black text-sm border border-white/10 shrink-0">
                   {student.roll || '-'}
                 </div>
-                <h3 className="font-bold text-white text-lg">{student.student_name}</h3>
+                <h3 className="font-bold text-white text-base font-noto truncate pr-2">{student.student_name}</h3>
               </div>
-              <button 
-                onClick={(e) => initiateCall(e, student)}
-                className="bg-white text-[#d35132] p-3.5 rounded-2xl shadow-xl active:scale-90 transition-all"
-              >
-                <Phone size={20} strokeWidth={2.5} />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button 
+                  onClick={(e) => initiateCall(e, student)}
+                  className="bg-white text-[#d35132] p-2.5 rounded-xl shadow-xl active:scale-90 transition-all"
+                >
+                  <Phone size={18} strokeWidth={3} fill="currentColor" />
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -127,9 +129,9 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
 
       <button 
         onClick={onAddClick}
-        className="fixed bottom-28 right-6 bg-white text-[#d35132] p-5 rounded-full shadow-[0_15px_40px_rgba(0,0,0,0.2)] active:scale-90 transition-all z-40 border border-white/50"
+        className="fixed bottom-24 right-6 bg-white text-[#d35132] p-4 rounded-full shadow-2xl active:scale-90 transition-all z-40 border border-white/50"
       >
-        <Plus size={32} strokeWidth={3} />
+        <Plus size={28} strokeWidth={3} />
       </button>
     </div>
   );
