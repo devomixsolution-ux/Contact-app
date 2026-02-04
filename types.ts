@@ -6,7 +6,10 @@ export interface Madrasah {
   name: string;
   phone?: string;
   logo_url?: string;
+  is_active: boolean;
+  is_super_admin: boolean;
   created_at: string;
+  email?: string; // Optional field for admin view
 }
 
 export interface Class {
@@ -38,7 +41,7 @@ export interface RecentCall {
   students?: Student; // Joined data
 }
 
-export type View = 'home' | 'classes' | 'account' | 'students' | 'student-details' | 'student-form' | 'class-form';
+export type View = 'home' | 'classes' | 'account' | 'students' | 'student-details' | 'student-form' | 'class-form' | 'admin-panel';
 
 export interface AppState {
   currentView: View;
