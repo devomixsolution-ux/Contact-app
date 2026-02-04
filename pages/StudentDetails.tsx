@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { ArrowLeft, Phone, Edit3, User as UserIcon, Smartphone, Hash, UserCheck, ShieldCheck } from 'lucide-react';
+import React, { useState } from 'react';
+import { ArrowLeft, Phone, Edit3, Trash2, User as UserIcon, Smartphone, UserCheck, ShieldCheck, Loader2 } from 'lucide-react';
 import { supabase } from '../supabase';
 import { Student, Language } from '../types';
 import { t } from '../translations';
@@ -13,6 +13,8 @@ interface StudentDetailsProps {
 }
 
 const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack, lang }) => {
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const recordCall = async (phoneNumber: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
@@ -28,16 +30,40 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
     window.location.href = `tel:${phoneNumber}`;
   };
 
+  const handleDelete = async () => {
+    if (window.confirm(t('confirm_delete', lang))) {
+      setIsDeleting(true);
+      try {
+        const { error } = await supabase.from('students').delete().eq('id', student.id);
+        if (error) throw error;
+        onBack(); // Go back to the list after deletion
+      } catch (err) {
+        console.error(err);
+        alert('Could not delete student');
+        setIsDeleting(false);
+      }
+    }
+  };
+
   return (
     <div className="animate-in slide-in-from-right-4 duration-500 pb-10">
       <div className="flex items-center justify-between mb-6">
         <button onClick={onBack} className="p-2.5 bg-white/10 rounded-xl text-white active:scale-90 transition-all border border-white/20 backdrop-blur-md">
           <ArrowLeft size={22} strokeWidth={2.5} />
         </button>
-        <button onClick={onEdit} className="flex items-center gap-2 px-4 py-2.5 bg-white/10 text-white font-bold rounded-xl border border-white/20 active:scale-90 transition-all text-sm">
-          <Edit3 size={16} />
-          {t('edit', lang)}
-        </button>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handleDelete}
+            disabled={isDeleting}
+            className="p-2.5 bg-red-500/20 text-red-200 rounded-xl active:scale-90 transition-all border border-red-500/20"
+          >
+            {isDeleting ? <Loader2 size={18} className="animate-spin" /> : <Trash2 size={18} />}
+          </button>
+          <button onClick={onEdit} className="flex items-center gap-2 px-4 py-2.5 bg-white/10 text-white font-bold rounded-xl border border-white/20 active:scale-90 transition-all text-sm">
+            <Edit3 size={16} />
+            {t('edit', lang)}
+          </button>
+        </div>
       </div>
 
       <div className="bg-white/15 backdrop-blur-2xl rounded-[2.5rem] border border-white/20 shadow-2xl overflow-hidden">
