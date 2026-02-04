@@ -50,7 +50,19 @@ export const translations = {
     class_select: 'ক্লাস নির্বাচন করুন',
     class_choose: 'ক্লাস বেছে নিন',
     class_name_label: 'ক্লাসের নাম',
-    invalid_phone: 'সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন (যেমন: ০১৭XXXXXXXX)'
+    invalid_phone: 'সঠিক ১১ ডিজিটের মোবাইল নম্বর দিন (যেমন: ০১৭XXXXXXXX)',
+    delete: 'ডিলিট',
+    confirm_delete: 'আপনি কি নিশ্চিতভাবে ডিলিট করতে চান?',
+    delete_success: 'সফলভাবে ডিলিট করা হয়েছে',
+    admin_panel: 'অ্যাডমিন প্যানেল',
+    admin_stats: 'মাদরাসা পরিসংখ্যান',
+    total_users: 'মোট ইউজার',
+    active_users: 'সক্রিয় ইউজার',
+    blocked_users: 'ব্লকড ইউজার',
+    account_disabled: 'আপনার অ্যাকাউন্টটি নিষ্ক্রিয় করা হয়েছে। অ্যাডমিনের সাথে যোগাযোগ করুন।',
+    status_active: 'সক্রিয়',
+    status_inactive: 'নিষ্ক্রিয়',
+    search_madrasah: 'মাদরাসা খুঁজুন...'
   },
   en: {
     home: 'Home',
@@ -100,7 +112,19 @@ export const translations = {
     class_select: 'Select Class',
     class_choose: 'Choose a class',
     class_name_label: 'Class Name',
-    invalid_phone: 'Enter a valid 11-digit mobile number (e.g. 017XXXXXXXX)'
+    invalid_phone: 'Enter a valid 11-digit mobile number (e.g. 017XXXXXXXX)',
+    delete: 'Delete',
+    confirm_delete: 'Are you sure you want to delete?',
+    delete_success: 'Deleted successfully',
+    admin_panel: 'Admin Panel',
+    admin_stats: 'Madrasah Statistics',
+    total_users: 'Total Users',
+    active_users: 'Active Users',
+    blocked_users: 'Blocked Users',
+    account_disabled: 'Your account has been disabled. Please contact admin.',
+    status_active: 'Active',
+    status_inactive: 'Inactive',
+    search_madrasah: 'Search Madrasah...'
   }
 };
 
