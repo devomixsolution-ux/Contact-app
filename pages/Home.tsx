@@ -25,14 +25,23 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
 
   const fetchRecentCalls = async () => {
     setLoadingRecent(true);
-    const { data } = await supabase
-      .from('recent_calls')
-      .select('*, students(*, classes(*))')
-      .order('called_at', { ascending: false })
-      .limit(8);
+    // Explicitly reset the state to ensure WebView re-renders correctly with new data
+    setRecentCalls([]);
     
-    if (data) setRecentCalls(data);
-    setLoadingRecent(false);
+    try {
+      const { data, error } = await supabase
+        .from('recent_calls')
+        .select('*, students(*, classes(*))')
+        .order('called_at', { ascending: false })
+        .limit(10);
+      
+      if (error) throw error;
+      if (data) setRecentCalls(data);
+    } catch (err) {
+      console.error("Recent calls fetch error:", err);
+    } finally {
+      setLoadingRecent(false);
+    }
   };
 
   const handleSearch = useCallback(async (query: string) => {
@@ -42,20 +51,26 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
     }
     
     setLoadingSearch(true);
-    const { data } = await supabase
-      .from('students')
-      .select('*, classes(*)')
-      .ilike('student_name', `%${query}%`)
-      .limit(8);
-    
-    if (data) setSearchResults(data);
-    setLoadingSearch(false);
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('*, classes(*)')
+        .ilike('student_name', `%${query}%`)
+        .limit(10);
+      
+      if (error) throw error;
+      if (data) setSearchResults(data);
+    } catch (err) {
+      console.error("Search error:", err);
+    } finally {
+      setLoadingSearch(false);
+    }
   }, []);
 
   useEffect(() => {
     const timer = setTimeout(() => {
       handleSearch(searchQuery);
-    }, 300);
+    }, 400);
     return () => clearTimeout(timer);
   }, [searchQuery, handleSearch]);
 
@@ -63,13 +78,18 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      await supabase.from('recent_calls').insert({
+      
+      const { error } = await supabase.from('recent_calls').insert({
         student_id: student.id,
         guardian_phone: student.guardian_phone,
         madrasah_id: user.id
       });
-      triggerRefresh(); // Refresh current and other screens
-    } catch (e) { console.error(e); }
+      
+      if (error) throw error;
+      triggerRefresh();
+    } catch (e) { 
+      console.error("Record call error:", e); 
+    }
   };
 
   const initiateCall = async (student: Student) => {
@@ -120,7 +140,7 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
         <h2 className="text-[11px] font-black text-white/60 uppercase tracking-widest px-2">{t('recent_calls', lang)}</h2>
         {loadingRecent ? (
           <div className="space-y-3">
-            {[1, 2, 3].map(i => <div key={i} className="h-16 bg-white/5 animate-pulse rounded-2xl"></div>)}
+            {[1, 2, 3].map(i => <div key={i} className="h-20 bg-white/5 animate-pulse rounded-[1.8rem]"></div>)}
           </div>
         ) : recentCalls.length > 0 ? (
           recentCalls.map(call => (
