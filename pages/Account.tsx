@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { LogOut, Check, Smartphone, Copy, Camera, Loader2, Hash, AlertCircle, RefreshCw, Lock } from 'lucide-react';
-import { supabase } from '../supabase';
+import { LogOut, Check, Smartphone, Copy, Camera, Loader2, Hash, AlertCircle, RefreshCw, Lock, WifiOff } from 'lucide-react';
+import { supabase, offlineApi } from '../supabase';
 import { Madrasah, Language, View } from '../types';
 import { t } from '../translations';
 
@@ -33,31 +33,55 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, isSup
   const fetchProfile = async () => {
     setLoading(true);
     setError('');
+    
+    // 1. Try to load from Cache immediately for offline support
+    const cachedProfile = offlineApi.getCache('profile');
+    if (cachedProfile) {
+      setMadrasah(cachedProfile);
+      setNewName(cachedProfile.name || '');
+      setNewPhone(cachedProfile.phone || '');
+      setNewLoginCode(cachedProfile.login_code || '');
+      // If we have cache and are offline, we can stop loading here
+      if (!navigator.onLine) {
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session?.user) {
-        setError(lang === 'bn' ? 'সেশন পাওয়া যায়নি' : 'Session not found');
+        if (!cachedProfile) {
+          setError(lang === 'bn' ? 'সেশন পাওয়া যায়নি' : 'Session not found');
+        }
         return;
       }
 
-      const { data, error: fetchError } = await supabase
-        .from('madrasahs')
-        .select('*')
-        .eq('id', session.user.id)
-        .single();
-      
-      if (fetchError) throw fetchError;
+      if (navigator.onLine) {
+        const { data, error: fetchError } = await supabase
+          .from('madrasahs')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+        
+        if (fetchError) throw fetchError;
 
-      if (data) {
-        setMadrasah(data);
-        setNewName(data.name || '');
-        setNewPhone(data.phone || '');
-        setNewLoginCode(data.login_code || '');
+        if (data) {
+          setMadrasah(data);
+          setNewName(data.name || '');
+          setNewPhone(data.phone || '');
+          setNewLoginCode(data.login_code || '');
+          // Update cache with fresh data
+          offlineApi.setCache('profile', data);
+        }
       }
     } catch (err: any) {
       console.error("Account Profile fetch error:", err);
-      setError(lang === 'bn' ? 'প্রোফাইল লোড করা যায়নি। পুনরায় চেষ্টা করুন।' : 'Profile load failed. Please try again.');
+      // If network fails but we have cache, don't show error
+      if (!cachedProfile) {
+        setError(lang === 'bn' ? 'প্রোফাইল লোড করা যায়নি। পুনরায় চেষ্টা করুন।' : 'Profile load failed. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
@@ -68,27 +92,38 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, isSup
     setSaving(true);
     setError('');
     try {
-      const { error: updateError } = await supabase
-        .from('madrasahs')
-        .update({ 
-          name: newName.trim(), 
-          phone: newPhone.trim(),
-          login_code: newLoginCode.trim() 
-        })
-        .eq('id', madrasah.id);
-      
-      if (updateError) throw updateError;
+      const updateData = { 
+        name: newName.trim(), 
+        phone: newPhone.trim(),
+        login_code: newLoginCode.trim() 
+      };
 
-      if (newLoginCode.trim() && newLoginCode.trim() !== (madrasah.login_code || '')) {
-        await supabase.auth.updateUser({
-          password: newLoginCode.trim()
-        });
+      if (navigator.onLine) {
+        const { error: updateError } = await supabase
+          .from('madrasahs')
+          .update(updateData)
+          .eq('id', madrasah.id);
+        
+        if (updateError) throw updateError;
+
+        if (newLoginCode.trim() && newLoginCode.trim() !== (madrasah.login_code || '')) {
+          await supabase.auth.updateUser({
+            password: newLoginCode.trim()
+          });
+        }
+      } else {
+        // Queue for offline sync
+        offlineApi.queueAction('madrasahs', 'UPDATE', { ...updateData, id: madrasah.id });
       }
+      
+      // Update local UI and cache immediately (Optimistic)
+      const updatedProfile = { ...madrasah, ...updateData };
+      setMadrasah(updatedProfile);
+      offlineApi.setCache('profile', updatedProfile);
       
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 2000);
       if (onProfileUpdate) onProfileUpdate();
-      fetchProfile();
     } catch (err: any) {
       setError(err.message || (lang === 'bn' ? 'আপডেট করা যায়নি' : 'Update failed'));
     } finally {
@@ -99,6 +134,12 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, isSup
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !madrasah) return;
+    
+    if (!navigator.onLine) {
+      alert(lang === 'bn' ? 'অফলাইনে ছবি আপলোড করা সম্ভব নয়' : 'Logo upload is not available offline');
+      return;
+    }
+
     setUploading(true);
     setError('');
     try {
@@ -109,8 +150,12 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, isSup
       const { data: { publicUrl } } = supabase.storage.from('logos').getPublicUrl(fileName);
       const { error: dbError } = await supabase.from('madrasahs').update({ logo_url: publicUrl }).eq('id', madrasah.id);
       if (dbError) throw dbError;
+      
+      const updatedProfile = { ...madrasah, logo_url: publicUrl };
+      setMadrasah(updatedProfile);
+      offlineApi.setCache('profile', updatedProfile);
+      
       if (onProfileUpdate) onProfileUpdate();
-      fetchProfile();
     } catch (err: any) {
       setError(lang === 'bn' ? 'লগো আপলোড করা যায়নি' : 'Logo upload failed');
     } finally {
@@ -125,26 +170,24 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, isSup
     setTimeout(() => setCopying(false), 2000);
   };
 
-  if (loading) return (
+  if (loading && !madrasah) return (
     <div className="py-20 flex flex-col items-center justify-center gap-4">
       <Loader2 className="animate-spin text-white" size={40} />
       <p className="text-white/60 font-bold">{lang === 'bn' ? 'লোড হচ্ছে...' : 'Loading...'}</p>
     </div>
   );
 
-  if (error && !madrasah) return (
-    <div className="bg-white/10 backdrop-blur-xl rounded-[2.5rem] p-10 text-center border border-white/20 animate-in fade-in zoom-in-95">
-      <AlertCircle className="mx-auto text-white/50 mb-4" size={60} />
-      <p className="text-white font-bold mb-8 text-lg">{error}</p>
-      <button onClick={fetchProfile} className="bg-white text-[#d35132] px-8 py-4 rounded-2xl font-black flex items-center gap-3 mx-auto active:scale-95 transition-all shadow-2xl">
-        <RefreshCw size={22} strokeWidth={3} /> {lang === 'bn' ? 'পুনরায় চেষ্টা করুন' : 'Retry Now'}
-      </button>
-    </div>
-  );
-
   return (
     <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-      <h1 className="text-2xl font-black text-white drop-shadow-sm">{t('account', lang)}</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-black text-white drop-shadow-sm">{t('account', lang)}</h1>
+        {!navigator.onLine && (
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-white/10 rounded-full border border-white/20">
+            <WifiOff size={10} className="text-white/60" />
+            <span className="text-[9px] font-black text-white/60 uppercase tracking-widest">Offline</span>
+          </div>
+        )}
+      </div>
 
       <div className="bg-white/20 backdrop-blur-xl rounded-[3rem] p-8 border border-white/30 shadow-2xl space-y-8">
         <div className="flex flex-col items-center gap-5">
@@ -160,9 +203,11 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, isSup
                 <Camera size={40} className="text-white/60" />
               )}
             </div>
-            <div className="absolute -bottom-1 -right-1 bg-white text-[#d35132] p-2 rounded-full shadow-lg border border-white/50 group-active:scale-90 transition-transform z-30">
-              <Camera size={18} />
-            </div>
+            {navigator.onLine && (
+              <div className="absolute -bottom-1 -right-1 bg-white text-[#d35132] p-2 rounded-full shadow-lg border border-white/50 group-active:scale-90 transition-transform z-30">
+                <Camera size={18} />
+              </div>
+            )}
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileUpload} />
           </div>
           <div className="text-center">
