@@ -23,9 +23,12 @@ const App: React.FC = () => {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [dataVersion, setDataVersion] = useState(0); // Global refresh trigger
   const [lang, setLang] = useState<Language>(() => {
     return (localStorage.getItem('app_lang') as Language) || 'bn';
   });
+
+  const triggerRefresh = () => setDataVersion(prev => prev + 1);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -60,7 +63,6 @@ const App: React.FC = () => {
   const fetchMadrasahProfile = async (userId: string) => {
     try {
       setLoading(true);
-      // Try to get profile
       const { data, error } = await supabase
         .from('madrasahs')
         .select('*')
@@ -69,16 +71,12 @@ const App: React.FC = () => {
       
       if (error) {
         if (error.code === 'PGRST116') {
-          // Profile doesn't exist, try to create it
           const { data: newData, error: createError } = await supabase
             .from('madrasahs')
             .insert([{ id: userId, name: 'নতুন মাদরাসা' }])
             .select()
             .single();
-          
           if (newData) setMadrasah(newData);
-        } else {
-          console.error("Fetch error:", error);
         }
       } else if (data) {
         if (data.is_active === false && !data.is_super_admin) {
@@ -121,14 +119,19 @@ const App: React.FC = () => {
           isSuperAdmin ? (
             <AdminPanel lang={lang} />
           ) : (
-            <Home onStudentClick={(s) => { setSelectedStudent(s); setView('student-details'); }} lang={lang} />
+            <Home 
+              onStudentClick={(s) => { setSelectedStudent(s); setView('student-details'); }} 
+              lang={lang} 
+              dataVersion={dataVersion}
+              triggerRefresh={triggerRefresh}
+            />
           )
         )}
         
         {!isSuperAdmin && (
           <>
             {view === 'classes' && (
-              <Classes onClassClick={(cls) => { setSelectedClass(cls); setView('students'); }} lang={lang} />
+              <Classes onClassClick={(cls) => { setSelectedClass(cls); setView('students'); }} lang={lang} dataVersion={dataVersion} />
             )}
             {view === 'students' && selectedClass && (
               <Students 
@@ -137,14 +140,17 @@ const App: React.FC = () => {
                 onAddClick={() => { setSelectedStudent(null); setIsEditing(false); setView('student-form'); }}
                 onBack={() => setView('classes')}
                 lang={lang}
+                dataVersion={dataVersion}
+                triggerRefresh={triggerRefresh}
               />
             )}
             {view === 'student-details' && selectedStudent && (
               <StudentDetails 
                 student={selectedStudent} 
                 onEdit={() => { setIsEditing(true); setView('student-form'); }}
-                onBack={() => setView(selectedClass ? 'students' : 'home')}
+                onBack={() => { triggerRefresh(); setView(selectedClass ? 'students' : 'home'); }}
                 lang={lang}
+                triggerRefresh={triggerRefresh}
               />
             )}
             {view === 'student-form' && (
@@ -152,7 +158,7 @@ const App: React.FC = () => {
                 student={selectedStudent} 
                 defaultClassId={selectedClass?.id}
                 isEditing={isEditing} 
-                onSuccess={() => setView(selectedClass ? 'students' : 'home')}
+                onSuccess={() => { triggerRefresh(); setView(selectedClass ? 'students' : 'home'); }}
                 onCancel={() => setView(selectedStudent ? 'student-details' : 'students')}
                 lang={lang}
               />
