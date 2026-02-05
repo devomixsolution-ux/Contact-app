@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, Phone, Clock, User as UserIcon } from 'lucide-react';
+import { Search, Phone, Clock, User as UserIcon, RefreshCw } from 'lucide-react';
 import { supabase } from '../supabase';
 import { Student, RecentCall, Language } from '../types';
 import { t } from '../translations';
@@ -19,14 +19,8 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
   const [loadingSearch, setLoadingSearch] = useState(false);
   const [loadingRecent, setLoadingRecent] = useState(true);
 
-  useEffect(() => {
-    fetchRecentCalls();
-  }, [dataVersion]);
-
-  const fetchRecentCalls = async () => {
-    setLoadingRecent(true);
-    // Explicitly reset the state to ensure WebView re-renders correctly with new data
-    setRecentCalls([]);
+  const fetchRecentCalls = async (isManual = false) => {
+    if (isManual) setLoadingRecent(true);
     
     try {
       const { data, error } = await supabase
@@ -44,8 +38,14 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
     }
   };
 
+  useEffect(() => {
+    // Small timeout to ensure Android WebView rendering doesn't race with the network request
+    const timer = setTimeout(() => fetchRecentCalls(), 100);
+    return () => clearTimeout(timer);
+  }, [dataVersion]);
+
   const handleSearch = useCallback(async (query: string) => {
-    if (query.trim().length === 0) {
+    if (!query.trim()) {
       setSearchResults([]);
       return;
     }
@@ -86,7 +86,8 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
       });
       
       if (error) throw error;
-      triggerRefresh();
+      // Trigger a refresh after a tiny delay to ensure consistency
+      setTimeout(() => triggerRefresh(), 500);
     } catch (e) { 
       console.error("Record call error:", e); 
     }
@@ -137,8 +138,14 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
       )}
 
       <div className="space-y-4">
-        <h2 className="text-[11px] font-black text-white/60 uppercase tracking-widest px-2">{t('recent_calls', lang)}</h2>
-        {loadingRecent ? (
+        <div className="flex items-center justify-between px-2">
+          <h2 className="text-[11px] font-black text-white/60 uppercase tracking-widest">{t('recent_calls', lang)}</h2>
+          <button onClick={() => triggerRefresh()} className="text-white/40 active:rotate-180 transition-transform p-1">
+             <RefreshCw size={14} />
+          </button>
+        </div>
+        
+        {loadingRecent && recentCalls.length === 0 ? (
           <div className="space-y-3">
             {[1, 2, 3].map(i => <div key={i} className="h-20 bg-white/5 animate-pulse rounded-[1.8rem]"></div>)}
           </div>
