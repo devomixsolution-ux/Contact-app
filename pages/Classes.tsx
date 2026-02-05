@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Plus, ChevronRight, BookOpen, Loader2, Users } from 'lucide-react';
-import { supabase } from '../supabase';
+import { Plus, ChevronRight, BookOpen, Loader2 } from 'lucide-react';
+import { supabase, offlineApi } from '../supabase';
 import { Class, Language } from '../types';
 import { t } from '../translations';
 
@@ -19,23 +19,17 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    // When dataVersion changes, clear local cache to force a fresh fetch
-    if (dataVersion && dataVersion > 0) {
-      localStorage.removeItem('cache_classes_with_counts');
-    }
     fetchClasses();
   }, [dataVersion]);
 
   const fetchClasses = async () => {
     setLoading(true);
     
-    // Check cache only if it's not a forced refresh
-    if (!dataVersion || dataVersion === 0) {
-      const cached = localStorage.getItem('cache_classes_with_counts');
-      if (cached) {
-        setClasses(JSON.parse(cached));
-        setLoading(false);
-      }
+    // Load from cache first
+    const cached = offlineApi.getCache('classes_with_counts');
+    if (cached) {
+      setClasses(cached);
+      setLoading(false);
     }
 
     if (navigator.onLine) {
@@ -58,7 +52,7 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
             })
           );
           setClasses(classesWithCounts);
-          localStorage.setItem('cache_classes_with_counts', JSON.stringify(classesWithCounts));
+          offlineApi.setCache('classes_with_counts', classesWithCounts);
         }
       } catch (err) {
         console.error("Classes fetch error:", err);
@@ -72,20 +66,24 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
 
   const handleAddClass = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newClassName.trim() || !navigator.onLine) return;
+    if (!newClassName.trim()) return;
+    
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not found');
       
-      const { error: insertError } = await supabase.from('classes').insert({
+      const payload = {
         class_name: newClassName.trim(),
         madrasah_id: user.id
-      });
+      };
+
+      if (navigator.onLine) {
+        await supabase.from('classes').insert(payload);
+      } else {
+        offlineApi.queueAction('classes', 'INSERT', payload);
+      }
       
-      if (insertError) throw insertError;
-      
-      localStorage.removeItem('cache_classes_with_counts');
       setNewClassName('');
       setShowAddModal(false);
       fetchClasses();
@@ -102,15 +100,14 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
         <h1 className="text-2xl font-black text-white drop-shadow-lg font-noto">{t('classes_title', lang)}</h1>
         <button 
           onClick={() => setShowAddModal(true)}
-          disabled={!navigator.onLine}
-          className={`bg-white text-[#d35132] px-4 py-2.5 rounded-xl text-[13px] font-black flex items-center gap-2 shadow-2xl active:scale-95 transition-all ${!navigator.onLine ? 'opacity-50' : ''}`}
+          className="bg-white text-[#d35132] px-4 py-2.5 rounded-xl text-[13px] font-black flex items-center gap-2 shadow-2xl active:scale-95 transition-all"
         >
           <Plus size={16} strokeWidth={3.5} />
           {t('new_class', lang)}
         </button>
       </div>
 
-      {loading ? (
+      {loading && classes.length === 0 ? (
         <div className="space-y-4">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="h-24 bg-white/10 animate-pulse rounded-[2.2rem]"></div>
@@ -140,7 +137,7 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
                   <p className="text-[10px] text-white/60 font-black uppercase tracking-[0.1em] mt-0.5">{t('view_students', lang)}</p>
                 </div>
               </div>
-              <ChevronRight className="text-white/40 group-active:text-white" size={24} strokeWidth={3} />
+              <ChevronRight className="text-white/40 group-active:text-white" size={20} strokeWidth={3} />
             </button>
           ))}
         </div>
