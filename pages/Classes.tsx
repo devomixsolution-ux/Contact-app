@@ -8,7 +8,6 @@ import { t } from '../translations';
 interface ClassesProps {
   onClassClick: (cls: Class) => void;
   lang: Language;
-  // Added dataVersion to track global refresh triggers
   dataVersion?: number;
 }
 
@@ -19,35 +18,54 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
   const [newClassName, setNewClassName] = useState('');
   const [saving, setSaving] = useState(false);
 
-  // Re-fetch classes whenever dataVersion changes
   useEffect(() => {
+    // When dataVersion changes, clear local cache to force a fresh fetch
+    if (dataVersion && dataVersion > 0) {
+      localStorage.removeItem('cache_classes_with_counts');
+    }
     fetchClasses();
   }, [dataVersion]);
 
   const fetchClasses = async () => {
-    const cached = localStorage.getItem('cache_classes_with_counts');
-    if (cached) {
-      setClasses(JSON.parse(cached));
-      setLoading(false);
+    setLoading(true);
+    
+    // Check cache only if it's not a forced refresh
+    if (!dataVersion || dataVersion === 0) {
+      const cached = localStorage.getItem('cache_classes_with_counts');
+      if (cached) {
+        setClasses(JSON.parse(cached));
+        setLoading(false);
+      }
     }
 
     if (navigator.onLine) {
-      // Fetch classes and manually get counts to avoid complex joins that might fail on some Supabase tiers
-      const { data: classesData } = await supabase.from('classes').select('*').order('class_name');
-      
-      if (classesData) {
-        const classesWithCounts = await Promise.all(
-          classesData.map(async (cls) => {
-            const { count } = await supabase
-              .from('students')
-              .select('*', { count: 'exact', head: true })
-              .eq('class_id', cls.id);
-            return { ...cls, student_count: count || 0 };
-          })
-        );
-        setClasses(classesWithCounts);
-        localStorage.setItem('cache_classes_with_counts', JSON.stringify(classesWithCounts));
+      try {
+        const { data: classesData, error: clsError } = await supabase
+          .from('classes')
+          .select('*')
+          .order('class_name');
+        
+        if (clsError) throw clsError;
+
+        if (classesData) {
+          const classesWithCounts = await Promise.all(
+            classesData.map(async (cls) => {
+              const { count } = await supabase
+                .from('students')
+                .select('*', { count: 'exact', head: true })
+                .eq('class_id', cls.id);
+              return { ...cls, student_count: count || 0 };
+            })
+          );
+          setClasses(classesWithCounts);
+          localStorage.setItem('cache_classes_with_counts', JSON.stringify(classesWithCounts));
+        }
+      } catch (err) {
+        console.error("Classes fetch error:", err);
+      } finally {
+        setLoading(false);
       }
+    } else {
       setLoading(false);
     }
   };
@@ -59,16 +77,20 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('User not found');
+      
       const { error: insertError } = await supabase.from('classes').insert({
         class_name: newClassName.trim(),
         madrasah_id: user.id
       });
+      
       if (insertError) throw insertError;
+      
+      localStorage.removeItem('cache_classes_with_counts');
       setNewClassName('');
       setShowAddModal(false);
       fetchClasses();
     } catch (err: any) {
-      console.error(err);
+      alert(lang === 'bn' ? 'ক্লাস যোগ করা যায়নি' : 'Failed to add class');
     } finally {
       setSaving(false);
     }
@@ -88,10 +110,10 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
         </button>
       </div>
 
-      {loading && classes.length === 0 ? (
+      {loading ? (
         <div className="space-y-4">
           {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-20 bg-white/10 animate-pulse rounded-[2rem]"></div>
+            <div key={i} className="h-24 bg-white/10 animate-pulse rounded-[2.2rem]"></div>
           ))}
         </div>
       ) : classes.length > 0 ? (
