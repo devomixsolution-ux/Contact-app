@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Save, User as UserIcon, Phone, List, Hash, Loader2, UserCheck } from 'lucide-react';
-import { supabase } from '../supabase';
+import { supabase, offlineApi } from '../supabase';
 import { Student, Class, Language } from '../types';
 import { t } from '../translations';
 
@@ -29,8 +29,16 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
   }, []);
 
   const fetchClasses = async () => {
-    const { data } = await supabase.from('classes').select('*').order('class_name');
-    if (data) setClasses(data);
+    const cached = offlineApi.getCache('classes');
+    if (cached) setClasses(cached);
+
+    if (navigator.onLine) {
+      const { data } = await supabase.from('classes').select('*').order('class_name');
+      if (data) {
+        setClasses(data);
+        offlineApi.setCache('classes', data);
+      }
+    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,6 +48,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+      
       const payload = {
         student_name: name.trim(),
         guardian_name: guardianName.trim(),
@@ -49,13 +58,30 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
         class_id: classId,
         madrasah_id: user.id
       };
-      if (isEditing && student) {
-        await supabase.from('students').update(payload).eq('id', student.id);
+
+      if (navigator.onLine) {
+        if (isEditing && student) {
+          await supabase.from('students').update(payload).eq('id', student.id);
+        } else {
+          await supabase.from('students').insert(payload);
+        }
       } else {
-        await supabase.from('students').insert(payload);
+        // Queue action for offline support
+        if (isEditing && student) {
+          offlineApi.queueAction('students', 'UPDATE', { ...payload, id: student.id });
+        } else {
+          offlineApi.queueAction('students', 'INSERT', payload);
+        }
+        // Invalidate specific class cache so it re-fetches or warns
+        localStorage.removeItem(`cache_students_${classId}`);
       }
       onSuccess();
-    } catch (err) { console.error(err); } finally { setLoading(false); }
+    } catch (err) { 
+      console.error(err); 
+      alert(lang === 'bn' ? 'তথ্য সংরক্ষণ করা সম্ভব হয়নি' : 'Could not save data');
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   return (
@@ -71,6 +97,12 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="bg-white/10 backdrop-blur-xl p-6 rounded-[2rem] border border-white/20 shadow-xl space-y-5">
+          {!navigator.onLine && (
+            <p className="text-[10px] bg-yellow-400/20 text-yellow-200 p-2 rounded-lg font-bold text-center">
+              {lang === 'bn' ? 'আপনি অফলাইনে আছেন। ডাটা পরে সেভ হবে।' : 'You are offline. Data will sync later.'}
+            </p>
+          )}
+          
           <div className="space-y-1.5">
             <label className="flex items-center gap-2 text-[10px] font-black text-white/50 uppercase tracking-widest px-1">
               <UserIcon size={12} />
