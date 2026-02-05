@@ -13,10 +13,10 @@
       :root {
         --safe-top: env(safe-area-inset-top);
         --safe-bottom: env(safe-area-inset-bottom);
-        --app-height: 100%;
+        --app-height: 100vh;
       }
       html, body {
-        height: 100%;
+        height: var(--app-height);
         width: 100%;
         margin: 0;
         padding: 0;
@@ -25,14 +25,11 @@
         position: fixed; 
         left: 0;
         top: 0;
-        right: 0;
-        bottom: 0;
         overscroll-behavior: none;
       }
       body {
         font-family: 'Hind Siliguri', 'Noto Sans Bengali', sans-serif;
         -webkit-tap-highlight-color: transparent;
-        font-size: 16px;
       }
       #root {
         height: 100%;
@@ -40,19 +37,25 @@
         display: flex;
         flex-direction: column;
       }
+      input, select, textarea {
+        font-size: 16px !important; /* Prevents auto-zoom on iOS but also good for WebView */
+        scroll-margin-bottom: 20vh;
+      }
       .no-select {
         -webkit-touch-callout: none;
         -webkit-user-select: none;
         user-select: none;
       }
-      ::-webkit-scrollbar {
-        width: 0px;
-      }
       .font-noto {
         font-family: 'Noto Sans Bengali', sans-serif;
       }
-      input, select, textarea {
-        scroll-margin-top: 100px;
+      /* Animation for feedback */
+      @keyframes pulse-white {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.5; }
+      }
+      .loading-pulse {
+        animation: pulse-white 1.5s infinite ease-in-out;
       }
     </style>
   <script type="importmap">
@@ -63,7 +66,7 @@
     "react": "https://esm.sh/react@^19.2.4",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
     "react-dom/client": "https://esm.sh/react-dom@^19.2.4/client",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.93.3"
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.45.4"
   }
 }
 </script>
@@ -72,21 +75,13 @@
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
     <script>
-      // Service worker disabled for WebView to avoid origin errors
-      // and ensure real-time data flow without stale cache issues.
-
-      const setAppHeight = () => {
-        const doc = document.documentElement;
+      const updateHeight = () => {
         const height = window.visualViewport ? window.visualViewport.height : window.innerHeight;
-        doc.style.setProperty('--app-height', `${height}px`);
+        document.documentElement.style.setProperty('--app-height', `${height}px`);
       };
-
-      if (window.visualViewport) {
-        window.visualViewport.addEventListener('resize', setAppHeight);
-        window.visualViewport.addEventListener('scroll', setAppHeight);
-      }
-      window.addEventListener('resize', setAppHeight);
-      setAppHeight();
+      window.visualViewport?.addEventListener('resize', updateHeight);
+      window.addEventListener('resize', updateHeight);
+      updateHeight();
     </script>
   </body>
 </html>
