@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ArrowLeft, Plus, Phone, Search, Loader2 } from 'lucide-react';
-import { supabase } from '../supabase';
+import { supabase, offlineApi } from '../supabase';
 import { Class, Student, Language } from '../types';
 import { t } from '../translations';
 
@@ -21,6 +21,8 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
 
+  const cacheKey = `students_list_${selectedClass.id}`;
+
   useEffect(() => {
     fetchStudents();
   }, [selectedClass.id, dataVersion]);
@@ -37,27 +39,37 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
 
   const fetchStudents = async () => {
     setLoading(true);
-    // Clearing state first to force a UI refresh and bypass WebView visual cache
-    setStudents([]);
-    setFilteredStudents([]);
+    
+    // Load from cache first
+    const cached = offlineApi.getCache(cacheKey);
+    if (cached) {
+      setStudents(cached);
+      setFilteredStudents(cached);
+      setLoading(false);
+    }
 
-    try {
-      const { data, error } = await supabase
-        .from('students')
-        .select('*, classes(*)')
-        .eq('class_id', selectedClass.id)
-        .order('roll', { ascending: true, nullsFirst: false })
-        .order('student_name', { ascending: true });
-      
-      if (error) throw error;
+    if (navigator.onLine) {
+      try {
+        const { data, error } = await supabase
+          .from('students')
+          .select('*, classes(*)')
+          .eq('class_id', selectedClass.id)
+          .order('roll', { ascending: true, nullsFirst: false })
+          .order('student_name', { ascending: true });
+        
+        if (error) throw error;
 
-      if (data) {
-        setStudents(data);
-        setFilteredStudents(data);
+        if (data) {
+          setStudents(data);
+          setFilteredStudents(data);
+          offlineApi.setCache(cacheKey, data);
+        }
+      } catch (err) {
+        console.error("Fetch students error:", err);
+      } finally {
+        setLoading(false);
       }
-    } catch (err) {
-      console.error("Fetch students error:", err);
-    } finally {
+    } else {
       setLoading(false);
     }
   };
@@ -66,11 +78,17 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    await supabase.from('recent_calls').insert({
+    const payload = {
       student_id: student.id,
       guardian_phone: student.guardian_phone,
       madrasah_id: user.id
-    });
+    };
+
+    if (navigator.onLine) {
+      await supabase.from('recent_calls').insert(payload);
+    } else {
+      offlineApi.queueAction('recent_calls', 'INSERT', payload);
+    }
     triggerRefresh();
   };
 
@@ -105,7 +123,7 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
         </div>
       </div>
 
-      {loading ? (
+      {loading && students.length === 0 ? (
         <div className="space-y-4">
           {[1, 2, 3, 4, 5].map(i => (
             <div key={i} className="h-20 bg-white/10 animate-pulse rounded-[2rem]"></div>
