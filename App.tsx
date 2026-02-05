@@ -28,13 +28,15 @@ const App: React.FC = () => {
     return (localStorage.getItem('app_lang') as Language) || 'bn';
   });
 
-  const triggerRefresh = () => setDataVersion(prev => prev + 1);
+  const triggerRefresh = () => {
+    // Clear local cache for classes before triggering
+    localStorage.removeItem('cache_classes_with_counts');
+    setDataVersion(prev => prev + 1);
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
-    
-    // Force refresh when window/app is focused (helpful for WebView)
     const handleFocus = () => triggerRefresh();
 
     window.addEventListener('online', handleOnline);
@@ -57,16 +59,17 @@ const App: React.FC = () => {
       }
     });
 
-    // Supabase Realtime for instant UI sync
-    const studentsChannel = supabase
-      .channel('schema-db-changes')
+    // Enhanced Realtime subscription with explicit refresh
+    const channel = supabase
+      .channel('db-changes')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => triggerRefresh())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_calls' }, () => triggerRefresh())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'classes' }, () => triggerRefresh())
       .subscribe();
 
     return () => {
       subscription.unsubscribe();
-      supabase.removeChannel(studentsChannel);
+      supabase.removeChannel(channel);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
       window.removeEventListener('focus', handleFocus);
@@ -84,7 +87,7 @@ const App: React.FC = () => {
       
       if (error) {
         if (error.code === 'PGRST116') {
-          const { data: newData, error: createError } = await supabase
+          const { data: newData } = await supabase
             .from('madrasahs')
             .insert([{ id: userId, name: 'নতুন মাদরাসা' }])
             .select()
@@ -104,6 +107,14 @@ const App: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const navigateTo = (newView: View) => {
+    // When changing views, often worth a small refresh to ensure data is current
+    if (newView !== view) {
+      triggerRefresh();
+    }
+    setView(newView);
   };
 
   const isSuperAdmin = madrasah?.is_super_admin === true;
@@ -127,13 +138,13 @@ const App: React.FC = () => {
           {lang === 'bn' ? 'অফলাইন মোড' : 'Offline Mode'}
         </div>
       )}
-      <Layout currentView={view} setView={setView} lang={lang} madrasah={madrasah}>
+      <Layout currentView={view} setView={navigateTo} lang={lang} madrasah={madrasah}>
         {view === 'home' && (
           isSuperAdmin ? (
             <AdminPanel lang={lang} />
           ) : (
             <Home 
-              onStudentClick={(s) => { setSelectedStudent(s); setView('student-details'); }} 
+              onStudentClick={(s) => { setSelectedStudent(s); navigateTo('student-details'); }} 
               lang={lang} 
               dataVersion={dataVersion}
               triggerRefresh={triggerRefresh}
@@ -144,14 +155,14 @@ const App: React.FC = () => {
         {!isSuperAdmin && (
           <>
             {view === 'classes' && (
-              <Classes onClassClick={(cls) => { setSelectedClass(cls); setView('students'); }} lang={lang} dataVersion={dataVersion} />
+              <Classes onClassClick={(cls) => { setSelectedClass(cls); navigateTo('students'); }} lang={lang} dataVersion={dataVersion} />
             )}
             {view === 'students' && selectedClass && (
               <Students 
                 selectedClass={selectedClass} 
-                onStudentClick={(s) => { setSelectedStudent(s); setView('student-details'); }} 
-                onAddClick={() => { setSelectedStudent(null); setIsEditing(false); setView('student-form'); }}
-                onBack={() => setView('classes')}
+                onStudentClick={(s) => { setSelectedStudent(s); navigateTo('student-details'); }} 
+                onAddClick={() => { setSelectedStudent(null); setIsEditing(false); navigateTo('student-form'); }}
+                onBack={() => navigateTo('classes')}
                 lang={lang}
                 dataVersion={dataVersion}
                 triggerRefresh={triggerRefresh}
@@ -160,8 +171,8 @@ const App: React.FC = () => {
             {view === 'student-details' && selectedStudent && (
               <StudentDetails 
                 student={selectedStudent} 
-                onEdit={() => { setIsEditing(true); setView('student-form'); }}
-                onBack={() => { triggerRefresh(); setView(selectedClass ? 'students' : 'home'); }}
+                onEdit={() => { setIsEditing(true); navigateTo('student-form'); }}
+                onBack={() => { triggerRefresh(); navigateTo(selectedClass ? 'students' : 'home'); }}
                 lang={lang}
                 triggerRefresh={triggerRefresh}
               />
@@ -171,8 +182,8 @@ const App: React.FC = () => {
                 student={selectedStudent} 
                 defaultClassId={selectedClass?.id}
                 isEditing={isEditing} 
-                onSuccess={() => { triggerRefresh(); setView(selectedClass ? 'students' : 'home'); }}
-                onCancel={() => setView(selectedStudent ? 'student-details' : 'students')}
+                onSuccess={() => { triggerRefresh(); navigateTo(selectedClass ? 'students' : 'home'); }}
+                onCancel={() => navigateTo(selectedStudent ? 'student-details' : 'students')}
                 lang={lang}
               />
             )}
@@ -184,7 +195,7 @@ const App: React.FC = () => {
             lang={lang} 
             setLang={(l) => { setLang(l); localStorage.setItem('app_lang', l); }} 
             onProfileUpdate={() => session && fetchMadrasahProfile(session.user.id)}
-            setView={setView}
+            setView={navigateTo}
             isSuperAdmin={isSuperAdmin}
           />
         )}
