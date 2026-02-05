@@ -15,11 +15,28 @@ root.render(
   </React.StrictMode>
 );
 
-// Register Service Worker for Offline support
+/**
+ * SERVICE WORKER REGISTRATION
+ * Note: Cloud-based preview environments (like AI Studio) often block Service Workers 
+ * due to origin/sandboxing restrictions. The app's core data-level offline functionality 
+ * is handled via offlineApi (LocalStorage) in supabase.ts, which works regardless of SW.
+ */
 if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('./sw.js').catch(err => {
-      console.error('Service Worker registration failed:', err);
-    });
+    // Check if we are in a context that typically allows Service Workers
+    const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const isSecureContext = window.isSecureContext;
+    
+    // Only attempt registration if the environment is suitable
+    if (isSecureContext || isLocalhost) {
+      navigator.serviceWorker.register('./sw.js')
+        .then(registration => {
+          console.log('SW registered:', registration.scope);
+        })
+        .catch(err => {
+          // Log as warning rather than error to avoid flooding consoles in restricted environments
+          console.warn('Service Worker registration skipped (Environment limitation). Offline data still active via LocalStorage.', err.message);
+        });
+    }
   });
 }
