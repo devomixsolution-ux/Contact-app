@@ -8,9 +8,11 @@ import { t } from '../translations';
 interface HomeProps {
   onStudentClick: (student: Student) => void;
   lang: Language;
+  dataVersion: number;
+  triggerRefresh: () => void;
 }
 
-const Home: React.FC<HomeProps> = ({ onStudentClick, lang }) => {
+const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerRefresh }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<Student[]>([]);
   const [recentCalls, setRecentCalls] = useState<RecentCall[]>([]);
@@ -19,7 +21,7 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang }) => {
 
   useEffect(() => {
     fetchRecentCalls();
-  }, []);
+  }, [dataVersion]);
 
   const fetchRecentCalls = async () => {
     setLoadingRecent(true);
@@ -66,7 +68,7 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang }) => {
         guardian_phone: student.guardian_phone,
         madrasah_id: user.id
       });
-      await fetchRecentCalls();
+      triggerRefresh(); // Refresh current and other screens
     } catch (e) { console.error(e); }
   };
 
