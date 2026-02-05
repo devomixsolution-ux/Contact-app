@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { Search, Phone, Clock, User as UserIcon, RefreshCw } from 'lucide-react';
-import { supabase } from '../supabase';
+import { supabase, offlineApi } from '../supabase';
 import { Student, RecentCall, Language } from '../types';
 import { t } from '../translations';
 
@@ -22,26 +22,34 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
   const fetchRecentCalls = async (isManual = false) => {
     if (isManual) setLoadingRecent(true);
     
-    try {
-      const { data, error } = await supabase
-        .from('recent_calls')
-        .select('*, students(*, classes(*))')
-        .order('called_at', { ascending: false })
-        .limit(10);
-      
-      if (error) throw error;
-      if (data) setRecentCalls(data);
-    } catch (err) {
-      console.error("Recent calls fetch error:", err);
-    } finally {
+    // Load from cache first
+    const cached = offlineApi.getCache('recent_calls');
+    if (cached) setRecentCalls(cached);
+
+    if (navigator.onLine) {
+      try {
+        const { data, error } = await supabase
+          .from('recent_calls')
+          .select('*, students(*, classes(*))')
+          .order('called_at', { ascending: false })
+          .limit(10);
+        
+        if (!error && data) {
+          setRecentCalls(data);
+          offlineApi.setCache('recent_calls', data);
+        }
+      } catch (err) {
+        console.error("Recent calls fetch error:", err);
+      } finally {
+        setLoadingRecent(false);
+      }
+    } else {
       setLoadingRecent(false);
     }
   };
 
   useEffect(() => {
-    // Small timeout to ensure Android WebView rendering doesn't race with the network request
-    const timer = setTimeout(() => fetchRecentCalls(), 100);
-    return () => clearTimeout(timer);
+    fetchRecentCalls();
   }, [dataVersion]);
 
   const handleSearch = useCallback(async (query: string) => {
@@ -50,6 +58,15 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
       return;
     }
     
+    // Try offline search from all cached students if possible
+    const allStudents = offlineApi.getCache('all_students_search') || [];
+    if (!navigator.onLine) {
+      setSearchResults(allStudents.filter((s: Student) => 
+        s.student_name.toLowerCase().includes(query.toLowerCase())
+      ).slice(0, 10));
+      return;
+    }
+
     setLoadingSearch(true);
     try {
       const { data, error } = await supabase
@@ -58,8 +75,14 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
         .ilike('student_name', `%${query}%`)
         .limit(10);
       
-      if (error) throw error;
-      if (data) setSearchResults(data);
+      if (!error && data) {
+        setSearchResults(data);
+        // Slowly build a master list for offline search
+        const currentMaster = offlineApi.getCache('all_students_search') || [];
+        const newIds = new Set(data.map(s => s.id));
+        const filteredMaster = currentMaster.filter((s: Student) => !newIds.has(s.id));
+        offlineApi.setCache('all_students_search', [...filteredMaster, ...data].slice(0, 500));
+      }
     } catch (err) {
       console.error("Search error:", err);
     } finally {
@@ -75,21 +98,31 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
   }, [searchQuery, handleSearch]);
 
   const recordCall = async (student: Student) => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
-      const { error } = await supabase.from('recent_calls').insert({
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    
+    const payload = {
+      student_id: student.id,
+      guardian_phone: student.guardian_phone,
+      madrasah_id: user.id
+    };
+
+    if (navigator.onLine) {
+      await supabase.from('recent_calls').insert(payload);
+      triggerRefresh();
+    } else {
+      offlineApi.queueAction('recent_calls', 'INSERT', payload);
+      // Manually add to UI for instant feedback
+      const newCall: RecentCall = {
+        id: 'temp_' + Date.now(),
         student_id: student.id,
         guardian_phone: student.guardian_phone,
-        madrasah_id: user.id
-      });
-      
-      if (error) throw error;
-      // Trigger a refresh after a tiny delay to ensure consistency
-      setTimeout(() => triggerRefresh(), 500);
-    } catch (e) { 
-      console.error("Record call error:", e); 
+        madrasah_id: user.id,
+        called_at: new Date().toISOString(),
+        students: student
+      };
+      setRecentCalls(prev => [newCall, ...prev.slice(0, 9)]);
+      offlineApi.setCache('recent_calls', [newCall, ...recentCalls.slice(0, 9)]);
     }
   };
 
@@ -140,7 +173,7 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
       <div className="space-y-4">
         <div className="flex items-center justify-between px-2">
           <h2 className="text-[11px] font-black text-white/60 uppercase tracking-widest">{t('recent_calls', lang)}</h2>
-          <button onClick={() => triggerRefresh()} className="text-white/40 active:rotate-180 transition-transform p-1">
+          <button onClick={() => fetchRecentCalls(true)} className="text-white/40 active:rotate-180 transition-transform p-1">
              <RefreshCw size={14} />
           </button>
         </div>
