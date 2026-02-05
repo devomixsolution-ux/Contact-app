@@ -11,9 +11,11 @@ interface StudentsProps {
   onAddClick: () => void;
   onBack: () => void;
   lang: Language;
+  dataVersion: number;
+  triggerRefresh: () => void;
 }
 
-const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAddClick, onBack, lang }) => {
+const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAddClick, onBack, lang, dataVersion, triggerRefresh }) => {
   const [students, setStudents] = useState<Student[]>([]);
   const [filteredStudents, setFilteredStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
@@ -21,7 +23,7 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
 
   useEffect(() => {
     fetchStudents();
-  }, [selectedClass.id]);
+  }, [selectedClass.id, dataVersion]);
 
   useEffect(() => {
     if (!searchQuery.trim()) {
@@ -35,12 +37,14 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
 
   const fetchStudents = async () => {
     setLoading(true);
+    // Adding timestamp to bust cache in WebView
     const { data } = await supabase
       .from('students')
       .select('*, classes(*)')
       .eq('class_id', selectedClass.id)
       .order('roll', { ascending: true, nullsFirst: false })
       .order('student_name', { ascending: true });
+    
     if (data) {
       setStudents(data);
       setFilteredStudents(data);
@@ -57,6 +61,7 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
       guardian_phone: student.guardian_phone,
       madrasah_id: user.id
     });
+    triggerRefresh(); // Refresh home screen calls
   };
 
   const initiateCall = async (e: React.MouseEvent, student: Student) => {
