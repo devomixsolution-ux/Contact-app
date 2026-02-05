@@ -1,86 +1,51 @@
 
--- 1. Enable necessary extensions
+-- 1. Enable extensions
 create extension if not exists "uuid-ossp";
-create extension if not exists "pg_trgm";
 
--- 2. Create or Update 'madrasahs' table
+-- 2. Madrasahs Table
 create table if not exists madrasahs (
   id uuid primary key references auth.users(id) on delete cascade,
   name text not null default 'নতুন মাদরাসা',
-  phone text, -- মোবাইল নম্বর কলাম
-  logo_url text, -- লোগো ইউআরএল কলাম
+  phone text,
+  logo_url text,
+  login_code text, -- Used to store and display login password in admin panel
+  is_active boolean default true,
+  is_super_admin boolean default false,
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
--- কলামগুলো যদি আগে থেকে না থাকে তবে সেগুলো যুক্ত করার জন্য নিচের অল্টার কমান্ডগুলো কাজ করবে
-do $$ 
-begin
-  if not exists (select 1 from information_schema.columns where table_name='madrasahs' and column_name='phone') then
-    alter table madrasahs add column phone text;
-  end if;
-  if not exists (select 1 from information_schema.columns where table_name='madrasahs' and column_name='logo_url') then
-    alter table madrasahs add column logo_url text;
-  end if;
-end $$;
-
--- 3. Create 'classes' table
-create table if not exists classes (
-  id uuid primary key default uuid_generate_v4(),
-  class_name text not null,
-  madrasah_id uuid not null references madrasahs(id) on delete cascade,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- 4. Create 'students' table
-create table if not exists students (
-  id uuid primary key default uuid_generate_v4(),
-  student_name text not null,
-  roll integer,
-  guardian_phone text not null,
-  class_id uuid not null references classes(id) on delete cascade,
-  madrasah_id uuid not null references madrasahs(id) on delete cascade,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- 5. Create 'recent_calls' table
-create table if not exists recent_calls (
-  id uuid primary key default uuid_generate_v4(),
-  student_id uuid not null references students(id) on delete cascade,
-  guardian_phone text not null,
-  madrasah_id uuid not null references madrasahs(id) on delete cascade,
-  called_at timestamp with time zone default timezone('utc'::text, now()) not null
-);
-
--- 6. Enable Row Level Security (RLS)
+-- Enable RLS
 alter table madrasahs enable row level security;
-alter table classes enable row level security;
-alter table students enable row level security;
-alter table recent_calls enable row level security;
 
--- 7. Define RLS Policies
-drop policy if exists "Admins can manage their own madrasah profile" on madrasahs;
-create policy "Admins can manage their own madrasah profile" on madrasahs for all using (auth.uid() = id);
+-- Function to avoid recursion in RLS
+CREATE OR REPLACE FUNCTION check_is_super_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM madrasahs
+    WHERE id = auth.uid() AND is_super_admin = true
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
-drop policy if exists "Admins can manage their own classes" on classes;
-create policy "Admins can manage their own classes" on classes for all using (auth.uid() = madrasah_id);
+-- Policies (Cleaning up old ones before creating)
+drop policy if exists "madrasahs_select_all" on madrasahs;
+create policy "madrasahs_select_all" on madrasahs 
+for select using (auth.uid() = id or check_is_super_admin());
 
-drop policy if exists "Admins can manage their own students" on students;
-create policy "Admins can manage their own students" on students for all using (auth.uid() = madrasah_id);
+drop policy if exists "madrasahs_update_all" on madrasahs;
+create policy "madrasahs_update_all" on madrasahs 
+for update using (auth.uid() = id or check_is_super_admin());
 
-drop policy if exists "Admins can manage their own call history" on recent_calls;
-create policy "Admins can manage their own call history" on recent_calls for all using (auth.uid() = madrasah_id);
+drop policy if exists "madrasahs_insert_self" on madrasahs;
+create policy "madrasahs_insert_self" on madrasahs 
+for insert with check (auth.uid() = id);
 
--- 8. AUTOMATIC PROFILE TRIGGER
-create or replace function public.handle_new_user()
-returns trigger as $$
-begin
-  insert into public.madrasahs (id, name, phone)
-  values (new.id, coalesce(new.raw_user_meta_data->>'full_name', 'নতুন মাদরাসা'), new.raw_user_meta_data->>'madrasah_phone');
-  return new;
-end;
-$$ language plpgsql security definer;
-
-drop trigger if exists on_auth_user_created on auth.users;
-create trigger on_auth_user_created
-  after insert on auth.users
-  for each row execute procedure public.handle_new_user();
+-- Ensure login_code column exists
+DO $$ 
+BEGIN 
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns 
+                   WHERE table_name='madrasahs' AND column_name='login_code') THEN
+        ALTER TABLE madrasahs ADD COLUMN login_code TEXT;
+    END IF;
+END $$;
