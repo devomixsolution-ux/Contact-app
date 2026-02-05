@@ -23,7 +23,7 @@ const App: React.FC = () => {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
-  const [dataVersion, setDataVersion] = useState(0); // Global refresh trigger
+  const [dataVersion, setDataVersion] = useState(0); 
   const [lang, setLang] = useState<Language>(() => {
     return (localStorage.getItem('app_lang') as Language) || 'bn';
   });
@@ -33,9 +33,13 @@ const App: React.FC = () => {
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
     const handleOffline = () => setIsOnline(false);
+    
+    // Force refresh when window/app is focused (helpful for WebView)
+    const handleFocus = () => triggerRefresh();
 
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
+    window.addEventListener('focus', handleFocus);
 
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
@@ -53,10 +57,19 @@ const App: React.FC = () => {
       }
     });
 
+    // Supabase Realtime for instant UI sync
+    const studentsChannel = supabase
+      .channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => triggerRefresh())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_calls' }, () => triggerRefresh())
+      .subscribe();
+
     return () => {
       subscription.unsubscribe();
+      supabase.removeChannel(studentsChannel);
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('focus', handleFocus);
     };
   }, []);
 
