@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Plus, Phone, Search } from 'lucide-react';
+import { ArrowLeft, Plus, Phone, Search, Loader2 } from 'lucide-react';
 import { supabase } from '../supabase';
 import { Class, Student, Language } from '../types';
 import { t } from '../translations';
@@ -37,19 +37,29 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
 
   const fetchStudents = async () => {
     setLoading(true);
-    // Adding timestamp to bust cache in WebView
-    const { data } = await supabase
-      .from('students')
-      .select('*, classes(*)')
-      .eq('class_id', selectedClass.id)
-      .order('roll', { ascending: true, nullsFirst: false })
-      .order('student_name', { ascending: true });
-    
-    if (data) {
-      setStudents(data);
-      setFilteredStudents(data);
+    // Clearing state first to force a UI refresh and bypass WebView visual cache
+    setStudents([]);
+    setFilteredStudents([]);
+
+    try {
+      const { data, error } = await supabase
+        .from('students')
+        .select('*, classes(*)')
+        .eq('class_id', selectedClass.id)
+        .order('roll', { ascending: true, nullsFirst: false })
+        .order('student_name', { ascending: true });
+      
+      if (error) throw error;
+
+      if (data) {
+        setStudents(data);
+        setFilteredStudents(data);
+      }
+    } catch (err) {
+      console.error("Fetch students error:", err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   const recordCall = async (student: Student) => {
@@ -61,7 +71,7 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
       guardian_phone: student.guardian_phone,
       madrasah_id: user.id
     });
-    triggerRefresh(); // Refresh home screen calls
+    triggerRefresh();
   };
 
   const initiateCall = async (e: React.MouseEvent, student: Student) => {
@@ -79,7 +89,7 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
           </button>
           <div className="min-w-0">
             <h1 className="text-xl font-black text-white truncate drop-shadow-sm">{selectedClass.class_name}</h1>
-            <p className="text-[10px] font-black text-white/60 uppercase tracking-widest">{students.length} {t('students_count', lang)}</p>
+            <p className="text-[10px] font-black text-white/60 uppercase tracking-widest">{loading ? '...' : students.length} {t('students_count', lang)}</p>
           </div>
         </div>
 
