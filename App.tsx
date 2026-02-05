@@ -11,7 +11,7 @@ import StudentForm from './pages/StudentForm';
 import Account from './pages/Account';
 import AdminPanel from './pages/AdminPanel';
 import { View, Class, Student, Language, Madrasah } from './types';
-import { WifiOff } from 'lucide-react';
+import { WifiOff, Loader2 } from 'lucide-react';
 import { t } from './translations';
 
 const App: React.FC = () => {
@@ -29,56 +29,44 @@ const App: React.FC = () => {
   });
 
   const triggerRefresh = () => {
-    // Clear local cache for classes before triggering
-    localStorage.removeItem('cache_classes_with_counts');
     setDataVersion(prev => prev + 1);
   };
 
   useEffect(() => {
-    const handleOnline = () => setIsOnline(true);
-    const handleOffline = () => setIsOnline(false);
-    const handleFocus = () => triggerRefresh();
+    const handleStatus = () => setIsOnline(navigator.onLine);
+    window.addEventListener('online', handleStatus);
+    window.addEventListener('offline', handleStatus);
 
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-    window.addEventListener('focus', handleFocus);
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (session) fetchMadrasahProfile(session.user.id);
-      else setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      if (session) fetchMadrasahProfile(session.user.id);
-      else {
-        setMadrasah(null);
-        setView('home');
+    // Get initial session
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      setSession(currentSession);
+      if (currentSession) {
+        fetchMadrasahProfile(currentSession.user.id);
+      } else {
         setLoading(false);
       }
     });
 
-    // Enhanced Realtime subscription with explicit refresh
-    const channel = supabase
-      .channel('db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'students' }, () => triggerRefresh())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'recent_calls' }, () => triggerRefresh())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'classes' }, () => triggerRefresh())
-      .subscribe();
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) {
+        fetchMadrasahProfile(session.user.id);
+      } else {
+        setMadrasah(null);
+        setLoading(false);
+      }
+    });
 
     return () => {
       subscription.unsubscribe();
-      supabase.removeChannel(channel);
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('online', handleStatus);
+      window.removeEventListener('offline', handleStatus);
     };
   }, []);
 
   const fetchMadrasahProfile = async (userId: string) => {
     try {
-      setLoading(true);
       const { data, error } = await supabase
         .from('madrasahs')
         .select('*')
@@ -87,14 +75,18 @@ const App: React.FC = () => {
       
       if (error) {
         if (error.code === 'PGRST116') {
-          const { data: newData } = await supabase
+          // Profile missing - create it
+          const { data: newData, error: insertError } = await supabase
             .from('madrasahs')
             .insert([{ id: userId, name: 'নতুন মাদরাসা' }])
-            .select()
-            .single();
-          if (newData) setMadrasah(newData);
+            .select().single();
+          
+          if (insertError) throw insertError;
+          setMadrasah(newData);
+        } else {
+          console.error("Profile load error:", error);
         }
-      } else if (data) {
+      } else {
         if (data.is_active === false && !data.is_super_admin) {
           alert(t('account_disabled', lang));
           await supabase.auth.signOut();
@@ -103,91 +95,82 @@ const App: React.FC = () => {
         setMadrasah(data);
       }
     } catch (e) {
-      console.error("Profile fetch error", e);
+      console.error("Profile exception:", e);
     } finally {
       setLoading(false);
     }
   };
 
   const navigateTo = (newView: View) => {
-    // When changing views, often worth a small refresh to ensure data is current
-    if (newView !== view) {
-      triggerRefresh();
-    }
+    if (newView !== view) triggerRefresh();
     setView(newView);
   };
-
-  const isSuperAdmin = madrasah?.is_super_admin === true;
 
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-[#d35132] text-white">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
-        <p className="font-black text-[10px] uppercase tracking-widest opacity-60">Initializing System...</p>
+        <Loader2 className="animate-spin mb-4" size={40} />
+        <p className="font-bold text-[10px] uppercase tracking-widest opacity-60">System Synchronizing...</p>
       </div>
     );
   }
 
   if (!session) return <Auth lang={lang} />;
 
+  const isSuperAdmin = madrasah?.is_super_admin === true;
+
   return (
-    <div className="relative h-full w-full">
+    <div className="relative h-full w-full bg-[#d35132]">
       {!isOnline && (
-        <div className="absolute top-0 left-0 right-0 bg-black/40 backdrop-blur-md text-white text-[10px] font-black py-1 px-4 z-[60] flex items-center justify-center gap-2 uppercase tracking-widest border-b border-white/10">
-          <WifiOff size={10} />
-          {lang === 'bn' ? 'অফলাইন মোড' : 'Offline Mode'}
+        <div className="absolute top-0 left-0 right-0 bg-black/60 backdrop-blur-md text-white text-[10px] font-black py-1.5 px-4 z-[60] flex items-center justify-center gap-2 uppercase tracking-widest border-b border-white/10">
+          <WifiOff size={10} /> {lang === 'bn' ? 'অফলাইন মোড' : 'Offline Mode'}
         </div>
       )}
+      
       <Layout currentView={view} setView={navigateTo} lang={lang} madrasah={madrasah}>
         {view === 'home' && (
-          isSuperAdmin ? (
-            <AdminPanel lang={lang} />
-          ) : (
-            <Home 
-              onStudentClick={(s) => { setSelectedStudent(s); navigateTo('student-details'); }} 
-              lang={lang} 
-              dataVersion={dataVersion}
-              triggerRefresh={triggerRefresh}
-            />
-          )
+          isSuperAdmin ? <AdminPanel lang={lang} /> : 
+          <Home 
+            onStudentClick={(s) => { setSelectedStudent(s); navigateTo('student-details'); }} 
+            lang={lang} 
+            dataVersion={dataVersion}
+            triggerRefresh={triggerRefresh}
+          />
         )}
         
-        {!isSuperAdmin && (
-          <>
-            {view === 'classes' && (
-              <Classes onClassClick={(cls) => { setSelectedClass(cls); navigateTo('students'); }} lang={lang} dataVersion={dataVersion} />
-            )}
-            {view === 'students' && selectedClass && (
-              <Students 
-                selectedClass={selectedClass} 
-                onStudentClick={(s) => { setSelectedStudent(s); navigateTo('student-details'); }} 
-                onAddClick={() => { setSelectedStudent(null); setIsEditing(false); navigateTo('student-form'); }}
-                onBack={() => navigateTo('classes')}
-                lang={lang}
-                dataVersion={dataVersion}
-                triggerRefresh={triggerRefresh}
-              />
-            )}
-            {view === 'student-details' && selectedStudent && (
-              <StudentDetails 
-                student={selectedStudent} 
-                onEdit={() => { setIsEditing(true); navigateTo('student-form'); }}
-                onBack={() => { triggerRefresh(); navigateTo(selectedClass ? 'students' : 'home'); }}
-                lang={lang}
-                triggerRefresh={triggerRefresh}
-              />
-            )}
-            {view === 'student-form' && (
-              <StudentForm 
-                student={selectedStudent} 
-                defaultClassId={selectedClass?.id}
-                isEditing={isEditing} 
-                onSuccess={() => { triggerRefresh(); navigateTo(selectedClass ? 'students' : 'home'); }}
-                onCancel={() => navigateTo(selectedStudent ? 'student-details' : 'students')}
-                lang={lang}
-              />
-            )}
-          </>
+        {view === 'classes' && <Classes onClassClick={(cls) => { setSelectedClass(cls); navigateTo('students'); }} lang={lang} dataVersion={dataVersion} />}
+        
+        {view === 'students' && selectedClass && (
+          <Students 
+            selectedClass={selectedClass} 
+            onStudentClick={(s) => { setSelectedStudent(s); navigateTo('student-details'); }} 
+            onAddClick={() => { setSelectedStudent(null); setIsEditing(false); navigateTo('student-form'); }}
+            onBack={() => navigateTo('classes')}
+            lang={lang}
+            dataVersion={dataVersion}
+            triggerRefresh={triggerRefresh}
+          />
+        )}
+
+        {view === 'student-details' && selectedStudent && (
+          <StudentDetails 
+            student={selectedStudent} 
+            onEdit={() => { setIsEditing(true); navigateTo('student-form'); }}
+            onBack={() => navigateTo(selectedClass ? 'students' : 'home')}
+            lang={lang}
+            triggerRefresh={triggerRefresh}
+          />
+        )}
+
+        {view === 'student-form' && (
+          <StudentForm 
+            student={selectedStudent} 
+            defaultClassId={selectedClass?.id}
+            isEditing={isEditing} 
+            onSuccess={() => navigateTo(selectedClass ? 'students' : 'home')}
+            onCancel={() => navigateTo(selectedStudent ? 'student-details' : (selectedClass ? 'students' : 'home'))}
+            lang={lang}
+          />
         )}
 
         {view === 'account' && (
