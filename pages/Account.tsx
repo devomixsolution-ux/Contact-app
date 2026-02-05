@@ -34,45 +34,30 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, isSup
     setLoading(true);
     setError('');
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setError('ইউজার পাওয়া যায়নি');
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session?.user) {
+        setError(lang === 'bn' ? 'সেশন পাওয়া যায়নি' : 'Session not found');
         return;
       }
 
       const { data, error: fetchError } = await supabase
         .from('madrasahs')
         .select('*')
-        .eq('id', user.id)
+        .eq('id', session.user.id)
         .single();
       
-      if (fetchError) {
-        if (fetchError.code === 'PGRST116') {
-           const { data: newData, error: createError } = await supabase
-             .from('madrasahs')
-             .insert([{ id: user.id, name: 'নতুন মাদরাসা' }])
-             .select()
-             .single();
-           if (newData) {
-             setMadrasah(newData);
-             setNewName(newData.name);
-             setNewPhone(newData.phone || '');
-             setNewLoginCode(newData.login_code || '');
-           } else {
-             throw createError;
-           }
-        } else {
-          throw fetchError;
-        }
-      } else if (data) {
+      if (fetchError) throw fetchError;
+
+      if (data) {
         setMadrasah(data);
-        setNewName(data.name);
+        setNewName(data.name || '');
         setNewPhone(data.phone || '');
         setNewLoginCode(data.login_code || '');
       }
     } catch (err: any) {
-      console.error("Account fetch error:", err);
-      setError('প্রোফাইল লোড করা যায়নি। ইন্টারনেট চেক করুন।');
+      console.error("Account Profile fetch error:", err);
+      setError(lang === 'bn' ? 'প্রোফাইল লোড করা যায়নি। পুনরায় চেষ্টা করুন।' : 'Profile load failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -83,7 +68,6 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, isSup
     setSaving(true);
     setError('');
     try {
-      // 1. Update the profile table
       const { error: updateError } = await supabase
         .from('madrasahs')
         .update({ 
@@ -95,24 +79,18 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, isSup
       
       if (updateError) throw updateError;
 
-      // 2. Also update Supabase Auth password if login_code changed
-      if (newLoginCode.trim() !== (madrasah.login_code || '')) {
-        const { error: authError } = await supabase.auth.updateUser({
+      if (newLoginCode.trim() && newLoginCode.trim() !== (madrasah.login_code || '')) {
+        await supabase.auth.updateUser({
           password: newLoginCode.trim()
         });
-        if (authError) {
-          console.warn("Auth password could not be updated:", authError.message);
-          // We don't throw here as the profile table update was successful, 
-          // but we might want to alert the user.
-        }
       }
       
       setShowSuccess(true);
       setTimeout(() => setShowSuccess(false), 2000);
       if (onProfileUpdate) onProfileUpdate();
-      await fetchProfile(); // Refresh local data
+      fetchProfile();
     } catch (err: any) {
-      setError(err.message || 'আপডেট করা যায়নি');
+      setError(err.message || (lang === 'bn' ? 'আপডেট করা যায়নি' : 'Update failed'));
     } finally {
       setSaving(false);
     }
@@ -132,9 +110,9 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, isSup
       const { error: dbError } = await supabase.from('madrasahs').update({ logo_url: publicUrl }).eq('id', madrasah.id);
       if (dbError) throw dbError;
       if (onProfileUpdate) onProfileUpdate();
-      await fetchProfile();
+      fetchProfile();
     } catch (err: any) {
-      setError('লোগো আপলোড করা যায়নি');
+      setError(lang === 'bn' ? 'লগো আপলোড করা যায়নি' : 'Logo upload failed');
     } finally {
       setUploading(false);
     }
@@ -150,16 +128,16 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, isSup
   if (loading) return (
     <div className="py-20 flex flex-col items-center justify-center gap-4">
       <Loader2 className="animate-spin text-white" size={40} />
-      <p className="text-white/60 font-bold">লোড হচ্ছে...</p>
+      <p className="text-white/60 font-bold">{lang === 'bn' ? 'লোড হচ্ছে...' : 'Loading...'}</p>
     </div>
   );
 
   if (error && !madrasah) return (
-    <div className="bg-white/10 backdrop-blur-xl rounded-[2.5rem] p-10 text-center border border-white/20">
-      <AlertCircle className="mx-auto text-red-400 mb-4" size={48} />
-      <p className="text-white font-bold mb-6">{error}</p>
-      <button onClick={fetchProfile} className="bg-white text-slate-900 px-6 py-3 rounded-xl font-black flex items-center gap-2 mx-auto active:scale-95 transition-all">
-        <RefreshCw size={18} /> পুনরায় চেষ্টা করুন
+    <div className="bg-white/10 backdrop-blur-xl rounded-[2.5rem] p-10 text-center border border-white/20 animate-in fade-in zoom-in-95">
+      <AlertCircle className="mx-auto text-white/50 mb-4" size={60} />
+      <p className="text-white font-bold mb-8 text-lg">{error}</p>
+      <button onClick={fetchProfile} className="bg-white text-[#d35132] px-8 py-4 rounded-2xl font-black flex items-center gap-3 mx-auto active:scale-95 transition-all shadow-2xl">
+        <RefreshCw size={22} strokeWidth={3} /> {lang === 'bn' ? 'পুনরায় চেষ্টা করুন' : 'Retry Now'}
       </button>
     </div>
   );
