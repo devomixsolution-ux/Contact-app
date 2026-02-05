@@ -1,6 +1,5 @@
 
 import React, { useState } from 'react';
-// Fix: Changed 'lucide-center' to 'lucide-react'
 import { ArrowLeft, Phone, Edit3, Trash2, User as UserIcon, Smartphone, UserCheck, ShieldCheck, Loader2, AlertTriangle, X } from 'lucide-react';
 import { supabase } from '../supabase';
 import { Student, Language } from '../types';
@@ -11,10 +10,10 @@ interface StudentDetailsProps {
   onEdit: () => void;
   onBack: () => void;
   lang: Language;
+  triggerRefresh: () => void;
 }
 
-// Fix: Complete the truncated component and ensure it is exported
-const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack, lang }) => {
+const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack, lang, triggerRefresh }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -26,6 +25,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
       guardian_phone: phoneNumber,
       madrasah_id: user.id
     });
+    triggerRefresh();
   };
 
   const initiateCall = async (phoneNumber: string) => {
@@ -38,36 +38,23 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
     setIsDeleting(true);
     
     try {
-      // 1. Get current session to ensure we have the correct user ID for RLS
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
       if (sessionError) throw sessionError;
       if (!session?.user) {
-        throw new Error(lang === 'bn' ? 'সেশন পাওয়া যায়নি। দয়া করে আবার লগইন করুন।' : 'Session not found. Please log in again.');
+        throw new Error(lang === 'bn' ? 'সেশন পাওয়া যায়নি' : 'Session not found');
       }
 
-      const userId = session.user.id;
-
-      // 2. Perform delete operation
       const { error, count } = await supabase
         .from('students')
         .delete({ count: 'exact' })
         .eq('id', student.id)
-        .eq('madrasah_id', userId);
+        .eq('madrasah_id', session.user.id);
 
       if (error) throw error;
-
-      if (count === 0) {
-        console.warn('No rows deleted. Possibly unauthorized or already removed.');
-      }
-
-      // 3. Close modal and navigate back
-      setShowDeleteModal(false);
       
-      setTimeout(() => {
-        onBack();
-      }, 150);
-
+      triggerRefresh(); // Signal global update
+      setShowDeleteModal(false);
+      onBack();
     } catch (err: any) {
       console.error('Delete operation failed:', err);
       alert(lang === 'bn' ? `ডিলিট করা সম্ভব হয়নি: ${err.message}` : `Could not delete: ${err.message}`);
@@ -97,7 +84,6 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
       </div>
 
       <div className="bg-white/15 backdrop-blur-2xl rounded-[2.5rem] border border-white/20 shadow-2xl overflow-hidden">
-        {/* Profile Banner */}
         <div className="bg-gradient-to-br from-white/10 to-transparent p-6 text-center border-b border-white/10 relative">
           <div className="w-20 h-20 bg-white/20 rounded-full mx-auto flex items-center justify-center border-2 border-white/30 shadow-xl mb-4 text-white">
             <UserIcon size={40} strokeWidth={1.5} />
@@ -110,7 +96,6 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
         </div>
 
         <div className="p-5 space-y-4">
-          {/* Info Grid */}
           <div className="grid grid-cols-2 gap-3">
             <div className="bg-white/5 p-4 rounded-2xl border border-white/10 flex flex-col items-center text-center">
               <span className="text-[9px] text-white/50 font-black uppercase tracking-widest mb-1">{t('roll', lang)}</span>
@@ -135,7 +120,6 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
             </div>
           )}
 
-          {/* Contact Actions */}
           <div className="space-y-3 pt-2">
             <label className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em] px-1">{lang === 'bn' ? 'কল করার মাধ্যম' : 'Calling Options'}</label>
             
@@ -164,7 +148,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
                   <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white/60"><Smartphone size={20} /></div>
                   <div className="text-left">
                     <span className="text-[9px] text-white/40 font-black uppercase tracking-widest block leading-none mb-1">{t('guardian_phone_2', lang)}</span>
-                    <span className="text-base font-bold text-white tracking-wider leading-none">{student.guardian_phone_2}</span>
+                    <span className="text-base font-bold text-white tracking-wider font-mono">{student.guardian_phone_2}</span>
                   </div>
                 </div>
                 <div className="bg-white text-[#d35132] p-2.5 rounded-xl shadow-lg">
@@ -175,15 +159,10 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
           </div>
         </div>
       </div>
-      
-      <p className="text-center text-white/30 text-[9px] mt-6 font-black uppercase tracking-[0.3em] px-8">
-        {lang === 'bn' ? 'তথ্য হালনাগাদ করা হয়েছে' : 'Information Updated'}
-      </p>
 
-      {/* Delete Confirmation Modal */}
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 border border-white/30 animate-in zoom-in-95 text-center relative">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in-95 text-center relative">
             <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6 text-red-500">
               <AlertTriangle size={40} />
             </div>
@@ -191,7 +170,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
               {t('confirm_delete', lang)}
             </h2>
             <p className="text-slate-500 text-sm mb-8 font-medium">
-              {lang === 'bn' ? 'এই ছাত্রের সকল তথ্য চিরতরে মুছে যাবে।' : 'All information of this student will be permanently deleted.'}
+              {lang === 'bn' ? 'এই ছাত্রের সকল তথ্য চিরতরে মুছে যাবে।' : 'All information will be deleted.'}
             </p>
             <div className="flex gap-3">
               <button
@@ -209,12 +188,6 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
                 {isDeleting ? <Loader2 className="animate-spin" size={18} /> : t('delete', lang)}
               </button>
             </div>
-            <button 
-              onClick={() => setShowDeleteModal(false)}
-              className="absolute top-6 right-6 text-slate-400"
-            >
-              <X size={20} />
-            </button>
           </div>
         </div>
       )}
@@ -222,5 +195,4 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
   );
 };
 
-// Fix: Add missing default export
 export default StudentDetails;
