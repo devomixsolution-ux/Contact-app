@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { ArrowLeft, Phone, Edit3, Trash2, User as UserIcon, Smartphone, UserCheck, ShieldCheck, Loader2, AlertTriangle, X } from 'lucide-react';
-import { supabase } from '../supabase';
+import { ArrowLeft, Phone, Edit3, Trash2, User as UserIcon, Smartphone, UserCheck, ShieldCheck, Loader2, AlertTriangle } from 'lucide-react';
+import { supabase, offlineApi } from '../supabase';
 import { Student, Language } from '../types';
 import { t } from '../translations';
 
@@ -20,11 +20,18 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
   const recordCall = async (phoneNumber: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    await supabase.from('recent_calls').insert({
+    
+    const payload = {
       student_id: student.id,
       guardian_phone: phoneNumber,
       madrasah_id: user.id
-    });
+    };
+
+    if (navigator.onLine) {
+      await supabase.from('recent_calls').insert(payload);
+    } else {
+      offlineApi.queueAction('recent_calls', 'INSERT', payload);
+    }
     triggerRefresh();
   };
 
@@ -38,26 +45,28 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
     setIsDeleting(true);
     
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError) throw sessionError;
-      if (!session?.user) {
-        throw new Error(lang === 'bn' ? 'সেশন পাওয়া যায়নি' : 'Session not found');
+      if (navigator.onLine) {
+        const { error } = await supabase
+          .from('students')
+          .delete()
+          .eq('id', student.id);
+        if (error) throw error;
+      } else {
+        offlineApi.queueAction('students', 'DELETE', { id: student.id });
+        // Optimistically update class cache if it exists
+        const cacheKey = `students_list_${student.class_id}`;
+        const cached = offlineApi.getCache(cacheKey);
+        if (cached) {
+          offlineApi.setCache(cacheKey, cached.filter((s: any) => s.id !== student.id));
+        }
       }
-
-      const { error, count } = await supabase
-        .from('students')
-        .delete({ count: 'exact' })
-        .eq('id', student.id)
-        .eq('madrasah_id', session.user.id);
-
-      if (error) throw error;
       
-      triggerRefresh(); // Signal global update
+      triggerRefresh();
       setShowDeleteModal(false);
       onBack();
     } catch (err: any) {
       console.error('Delete operation failed:', err);
-      alert(lang === 'bn' ? `ডিলিট করা সম্ভব হয়নি: ${err.message}` : `Could not delete: ${err.message}`);
+      alert(lang === 'bn' ? `ডিলিট করা সম্ভব হয়নি` : `Could not delete`);
     } finally {
       setIsDeleting(false);
     }
@@ -170,7 +179,9 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
               {t('confirm_delete', lang)}
             </h2>
             <p className="text-slate-500 text-sm mb-8 font-medium">
-              {lang === 'bn' ? 'এই ছাত্রের সকল তথ্য চিরতরে মুছে যাবে।' : 'All information will be deleted.'}
+              {!navigator.onLine 
+                ? (lang === 'bn' ? 'আপনি অফলাইনে আছেন। ইন্টারনেট এলে ডিলিট সম্পন্ন হবে।' : 'You are offline. Deletion will sync later.')
+                : (lang === 'bn' ? 'এই ছাত্রের সকল তথ্য চিরতরে মুছে যাবে।' : 'All information will be deleted.')}
             </p>
             <div className="flex gap-3">
               <button
