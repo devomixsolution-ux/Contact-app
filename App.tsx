@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { supabase } from './supabase';
+import { supabase, offlineApi } from './supabase';
 import Auth from './pages/Auth';
 import Layout from './components/Layout';
 import Home from './pages/Home';
@@ -11,12 +11,13 @@ import StudentForm from './pages/StudentForm';
 import Account from './pages/Account';
 import AdminPanel from './pages/AdminPanel';
 import { View, Class, Student, Language, Madrasah } from './types';
-import { WifiOff, Loader2 } from 'lucide-react';
+import { WifiOff, Loader2, CloudSync } from 'lucide-react';
 import { t } from './translations';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [view, setView] = useState<View>('home');
   const [madrasah, setMadrasah] = useState<Madrasah | null>(null);
   const [selectedClass, setSelectedClass] = useState<Class | null>(null);
@@ -32,35 +33,50 @@ const App: React.FC = () => {
     setDataVersion(prev => prev + 1);
   };
 
-  useEffect(() => {
-    const handleStatus = () => setIsOnline(navigator.onLine);
-    window.addEventListener('online', handleStatus);
-    window.addEventListener('offline', handleStatus);
+  const handleSync = async () => {
+    if (navigator.onLine) {
+      setSyncing(true);
+      await offlineApi.processQueue();
+      setSyncing(false);
+      triggerRefresh();
+    }
+  };
 
-    // CRITICAL: Refresh data when user returns from a call
-    const handleSync = () => {
+  useEffect(() => {
+    const handleOnline = () => {
+      setIsOnline(true);
+      handleSync();
+    };
+    const handleOffline = () => setIsOnline(false);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    const handleVisibilitySync = () => {
       if (document.visibilityState === 'visible') {
+        if (navigator.onLine) handleSync();
         triggerRefresh();
       }
     };
-    window.addEventListener('visibilitychange', handleSync);
-    window.addEventListener('focus', handleSync);
+    window.addEventListener('visibilitychange', handleVisibilitySync);
+    window.addEventListener('focus', handleVisibilitySync);
 
-    // Get initial session
+    // Initial load
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       setSession(currentSession);
       if (currentSession) {
         fetchMadrasahProfile(currentSession.user.id);
+        handleSync();
       } else {
         setLoading(false);
       }
     });
 
-    // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) {
         fetchMadrasahProfile(session.user.id);
+        handleSync();
       } else {
         setMadrasah(null);
         setLoading(false);
@@ -69,38 +85,35 @@ const App: React.FC = () => {
 
     return () => {
       subscription.unsubscribe();
-      window.removeEventListener('online', handleStatus);
-      window.removeEventListener('offline', handleStatus);
-      window.removeEventListener('visibilitychange', handleSync);
-      window.removeEventListener('focus', handleSync);
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('visibilitychange', handleVisibilitySync);
+      window.removeEventListener('focus', handleVisibilitySync);
     };
   }, []);
 
   const fetchMadrasahProfile = async (userId: string) => {
     try {
-      const { data, error } = await supabase
-        .from('madrasahs')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      
-      if (error) {
-        if (error.code === 'PGRST116') {
-          const { data: newData, error: insertError } = await supabase
-            .from('madrasahs')
-            .insert([{ id: userId, name: 'নতুন মাদরাসা' }])
-            .select().single();
-          
-          if (insertError) throw insertError;
-          setMadrasah(newData);
+      // Try cache first
+      const cached = offlineApi.getCache('profile');
+      if (cached) setMadrasah(cached);
+
+      if (navigator.onLine) {
+        const { data, error } = await supabase
+          .from('madrasahs')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        if (!error && data) {
+          if (data.is_active === false && !data.is_super_admin) {
+            alert(t('account_disabled', lang));
+            await supabase.auth.signOut();
+            return;
+          }
+          setMadrasah(data);
+          offlineApi.setCache('profile', data);
         }
-      } else {
-        if (data.is_active === false && !data.is_super_admin) {
-          alert(t('account_disabled', lang));
-          await supabase.auth.signOut();
-          return;
-        }
-        setMadrasah(data);
       }
     } catch (e) {
       console.error("Profile exception:", e);
@@ -110,7 +123,6 @@ const App: React.FC = () => {
   };
 
   const navigateTo = (newView: View) => {
-    // Always trigger a slight delay in refresh to allow DB updates to commit
     triggerRefresh();
     setView(newView);
   };
@@ -130,9 +142,13 @@ const App: React.FC = () => {
 
   return (
     <div className="relative h-full w-full bg-[#d35132]">
-      {!isOnline && (
+      {(!isOnline || syncing) && (
         <div className="absolute top-0 left-0 right-0 bg-black/60 backdrop-blur-md text-white text-[10px] font-black py-1.5 px-4 z-[60] flex items-center justify-center gap-2 uppercase tracking-widest border-b border-white/10">
-          <WifiOff size={10} /> {lang === 'bn' ? 'অফলাইন মোড' : 'Offline Mode'}
+          {syncing ? (
+            <><CloudSync size={12} className="animate-pulse" /> {lang === 'bn' ? 'ডাটা সিঙ্ক হচ্ছে...' : 'Syncing Data...'}</>
+          ) : (
+            <><WifiOff size={10} /> {lang === 'bn' ? 'অফলাইন মোড' : 'Offline Mode'}</>
+          )}
         </div>
       )}
       
