@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Save, User as UserIcon, Phone, List, Hash, Loader2, UserCheck } from 'lucide-react';
+import { ArrowLeft, Save, User as UserIcon, Phone, List, Hash, Loader2, UserCheck, AlertCircle, X } from 'lucide-react';
 import { supabase, offlineApi } from '../supabase';
 import { Student, Class, Language } from '../types';
 import { t } from '../translations';
@@ -23,6 +23,9 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
   const [classId, setClassId] = useState(student?.class_id || defaultClassId || '');
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // Custom Alert State
+  const [errorModal, setErrorModal] = useState<{show: boolean, message: string}>({show: false, message: ''});
 
   useEffect(() => {
     fetchClasses();
@@ -42,7 +45,6 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
   };
 
   const checkDuplicateRoll = async (targetRoll: number, targetClassId: string) => {
-    // 1. Check Offline Cache first (Students.tsx uses 'students_list_ID')
     const cacheKey = `students_list_${targetClassId}`;
     const cachedStudents = offlineApi.getCache(cacheKey) as Student[] | null;
     
@@ -53,7 +55,6 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
       if (isDuplicate) return true;
     }
 
-    // 2. If online, check database for real-time accuracy
     if (navigator.onLine) {
       let query = supabase
         .from('students')
@@ -81,12 +82,11 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Duplicate Roll Check
       if (roll) {
         const rollNum = parseInt(roll);
         const isDuplicate = await checkDuplicateRoll(rollNum, classId);
         if (isDuplicate) {
-          alert(t('duplicate_roll', lang));
+          setErrorModal({ show: true, message: t('duplicate_roll', lang) });
           setLoading(false);
           return;
         }
@@ -109,7 +109,6 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
           await supabase.from('students').insert(payload);
         }
       } else {
-        // Queue action for offline support
         if (isEditing && student) {
           offlineApi.queueAction('students', 'UPDATE', { ...payload, id: student.id });
         } else {
@@ -117,16 +116,14 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
         }
       }
 
-      // ALWAYS invalidate related caches to ensure the app refetches fresh data
-      // This fixes the issue in the screenshot where the key needs to be exact
       offlineApi.removeCache(`students_list_${classId}`);
-      offlineApi.removeCache(`all_students_search`); // Clear global search cache
-      offlineApi.removeCache(`recent_calls`); // Labels might have changed
+      offlineApi.removeCache(`all_students_search`);
+      offlineApi.removeCache(`recent_calls`);
       
       onSuccess();
     } catch (err) { 
       console.error(err); 
-      alert(lang === 'bn' ? 'তথ্য সংরক্ষণ করা সম্ভব হয়নি' : 'Could not save data');
+      setErrorModal({ show: true, message: lang === 'bn' ? 'তথ্য সংরক্ষণ করা সম্ভব হয়নি' : 'Could not save data' });
     } finally { 
       setLoading(false); 
     }
@@ -250,6 +247,29 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
           {loading ? <Loader2 className="animate-spin" size={20} /> : <><Save size={20} /> {t('save', lang)}</>}
         </button>
       </form>
+
+      {/* Beautiful Custom Error Modal */}
+      {errorModal.show && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in-95 text-center border border-white/20">
+            <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-5 text-red-500 shadow-sm">
+              <AlertCircle size={32} />
+            </div>
+            <h2 className="text-xl font-black text-slate-800 mb-3 font-noto">
+              {lang === 'bn' ? 'দুঃখিত!' : 'Sorry!'}
+            </h2>
+            <p className="text-slate-600 text-sm font-bold mb-8 font-noto leading-relaxed px-2">
+              {errorModal.message}
+            </p>
+            <button
+              onClick={() => setErrorModal({ show: false, message: '' })}
+              className="w-full py-4 bg-[#d35132] text-white font-black rounded-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              {lang === 'bn' ? 'ঠিক আছে' : 'OK'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
