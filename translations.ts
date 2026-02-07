@@ -62,7 +62,8 @@ export const translations = {
     account_disabled: 'আপনার অ্যাকাউন্টটি নিষ্ক্রিয় করা হয়েছে। অ্যাডমিনের সাথে যোগাযোগ করুন।',
     status_active: 'সক্রিয়',
     status_inactive: 'নিষ্ক্রিয়',
-    search_madrasah: 'মাদরাসা খুঁজুন...'
+    search_madrasah: 'মাদরাসা খুঁজুন...',
+    duplicate_roll: 'এই রোল নম্বরটি এই ক্লাসে ইতিমধ্যে ব্যবহৃত হয়েছে!'
   },
   en: {
     home: 'Home',
@@ -124,7 +125,8 @@ export const translations = {
     account_disabled: 'Your account has been disabled. Please contact admin.',
     status_active: 'Active',
     status_inactive: 'Inactive',
-    search_madrasah: 'Search Madrasah...'
+    search_madrasah: 'Search Madrasah...',
+    duplicate_roll: 'This roll number is already taken in this class!'
   }
 };
 
