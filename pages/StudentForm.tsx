@@ -42,7 +42,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
   };
 
   const checkDuplicateRoll = async (targetRoll: number, targetClassId: string) => {
-    // 1. Check Offline Cache first
+    // 1. Check Offline Cache first (Students.tsx uses 'students_list_ID')
     const cacheKey = `students_list_${targetClassId}`;
     const cachedStudents = offlineApi.getCache(cacheKey) as Student[] | null;
     
@@ -115,9 +115,14 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
         } else {
           offlineApi.queueAction('students', 'INSERT', payload);
         }
-        // Invalidate specific class cache
-        localStorage.removeItem(`cache_students_list_${classId}`);
       }
+
+      // ALWAYS invalidate related caches to ensure the app refetches fresh data
+      // This fixes the issue in the screenshot where the key needs to be exact
+      offlineApi.removeCache(`students_list_${classId}`);
+      offlineApi.removeCache(`all_students_search`); // Clear global search cache
+      offlineApi.removeCache(`recent_calls`); // Labels might have changed
+      
       onSuccess();
     } catch (err) { 
       console.error(err); 
