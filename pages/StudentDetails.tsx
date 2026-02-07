@@ -79,10 +79,10 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
           <ArrowLeft size={22} strokeWidth={2.5} />
         </button>
         <div className="flex items-center gap-2">
-          {/* Fixed Delete Button Background to a cleaner glass look with red icon */}
+          {/* Updated Delete Button to requested #d15031 background and white icon */}
           <button 
             onClick={() => setShowDeleteModal(true)}
-            className="p-2.5 bg-white/10 text-red-400 rounded-xl active:scale-90 transition-all border border-white/20 backdrop-blur-md shadow-lg"
+            className="p-2.5 bg-[#d15031] text-white rounded-xl active:scale-90 transition-all border border-white/20 shadow-lg"
             title={t('delete', lang)}
           >
             <Trash2 size={18} />
