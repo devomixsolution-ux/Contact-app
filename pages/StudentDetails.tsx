@@ -79,13 +79,15 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
           <ArrowLeft size={22} strokeWidth={2.5} />
         </button>
         <div className="flex items-center gap-2">
+          {/* Fixed Delete Button Background to a cleaner glass look with red icon */}
           <button 
             onClick={() => setShowDeleteModal(true)}
-            className="p-2.5 bg-red-500/20 text-red-200 rounded-xl active:scale-90 transition-all border border-red-500/20"
+            className="p-2.5 bg-white/10 text-red-400 rounded-xl active:scale-90 transition-all border border-white/20 backdrop-blur-md shadow-lg"
+            title={t('delete', lang)}
           >
             <Trash2 size={18} />
           </button>
-          <button onClick={onEdit} className="flex items-center gap-2 px-4 py-2.5 bg-white/10 text-white font-bold rounded-xl border border-white/20 active:scale-90 transition-all text-sm">
+          <button onClick={onEdit} className="flex items-center gap-2 px-4 py-2.5 bg-white/10 text-white font-bold rounded-xl border border-white/20 active:scale-90 transition-all text-sm shadow-lg">
             <Edit3 size={16} />
             {t('edit', lang)}
           </button>
@@ -97,7 +99,9 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
           <div className="w-20 h-20 bg-white/20 rounded-full mx-auto flex items-center justify-center border-2 border-white/30 shadow-xl mb-4 text-white">
             <UserIcon size={40} strokeWidth={1.5} />
           </div>
-          <h2 className="text-xl font-black text-white font-noto tracking-tight drop-shadow-sm truncate px-4">{student.student_name}</h2>
+          <h2 className="text-xl font-black text-white font-noto tracking-tight drop-shadow-sm truncate px-4 leading-normal">
+            {student.student_name}
+          </h2>
           <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-white/20 rounded-full mt-2 border border-white/10">
             <ShieldCheck size={12} className="text-white/60" />
             <span className="text-[10px] text-white font-black uppercase tracking-wider">{student.classes?.class_name || 'N/A'}</span>
@@ -171,7 +175,7 @@ const StudentDetails: React.FC<StudentDetailsProps> = ({ student, onEdit, onBack
 
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
-          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in-95 text-center relative">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in-95 text-center relative border border-white/20">
             <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6 text-red-500">
               <AlertTriangle size={40} />
             </div>
