@@ -234,7 +234,14 @@ const Account: React.FC<AccountProps> = ({ lang, setLang, onProfileUpdate, isSup
           
           <div className="space-y-2">
             <label className="text-[10px] font-black text-white/50 uppercase tracking-widest px-1">{t('madrasah_phone', lang)}</label>
-            <input type="tel" className="w-full px-6 py-5 bg-white/10 border border-white/20 rounded-3xl text-white font-bold outline-none focus:bg-white/20 transition-all" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
+            <input 
+              type="tel" 
+              maxLength={11}
+              className="w-full px-6 py-5 bg-white/10 border border-white/20 rounded-3xl text-white font-bold outline-none focus:bg-white/20 transition-all" 
+              value={newPhone} 
+              onChange={(e) => setNewPhone(e.target.value.replace(/\D/g, '').slice(0, 11))} 
+              placeholder="০১৭XXXXXXXX"
+            />
           </div>
 
           <div className="space-y-2">
