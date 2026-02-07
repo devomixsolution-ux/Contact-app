@@ -37,6 +37,11 @@ export const offlineApi = {
     return cached ? JSON.parse(cached) : null;
   },
 
+  // Remove a specific cache
+  removeCache: (key: string) => {
+    localStorage.removeItem(`cache_${key}`);
+  },
+
   // Queue a mutation for sync later
   queueAction: (table: string, type: 'INSERT' | 'UPDATE' | 'DELETE', payload: any) => {
     const queue: PendingAction[] = JSON.parse(localStorage.getItem('sync_queue') || '[]');
