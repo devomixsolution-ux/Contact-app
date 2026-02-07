@@ -141,7 +141,9 @@ const Students: React.FC<StudentsProps> = ({ selectedClass, onStudentClick, onAd
                 <div className="bg-white/15 w-10 h-10 rounded-xl flex items-center justify-center text-white/80 font-black text-sm border border-white/10 shrink-0">
                   {student.roll || '-'}
                 </div>
-                <h3 className="font-bold text-white text-base font-noto truncate pr-2">{student.student_name}</h3>
+                <h3 className="font-black text-white text-base font-noto truncate pr-1 leading-normal">
+                  {student.student_name}
+                </h3>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 <button 
