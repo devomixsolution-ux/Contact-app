@@ -41,13 +41,56 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
     }
   };
 
+  const checkDuplicateRoll = async (targetRoll: number, targetClassId: string) => {
+    // 1. Check Offline Cache first
+    const cacheKey = `students_list_${targetClassId}`;
+    const cachedStudents = offlineApi.getCache(cacheKey) as Student[] | null;
+    
+    if (cachedStudents) {
+      const isDuplicate = cachedStudents.some(s => 
+        s.roll === targetRoll && (!isEditing || s.id !== student?.id)
+      );
+      if (isDuplicate) return true;
+    }
+
+    // 2. If online, check database for real-time accuracy
+    if (navigator.onLine) {
+      let query = supabase
+        .from('students')
+        .select('id')
+        .eq('class_id', targetClassId)
+        .eq('roll', targetRoll);
+      
+      if (isEditing && student) {
+        query = query.neq('id', student.id);
+      }
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) return true;
+    }
+
+    return false;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name || !phone || !classId) return;
+
     setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      // Duplicate Roll Check
+      if (roll) {
+        const rollNum = parseInt(roll);
+        const isDuplicate = await checkDuplicateRoll(rollNum, classId);
+        if (isDuplicate) {
+          alert(t('duplicate_roll', lang));
+          setLoading(false);
+          return;
+        }
+      }
       
       const payload = {
         student_name: name.trim(),
@@ -72,8 +115,8 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
         } else {
           offlineApi.queueAction('students', 'INSERT', payload);
         }
-        // Invalidate specific class cache so it re-fetches or warns
-        localStorage.removeItem(`cache_students_${classId}`);
+        // Invalidate specific class cache
+        localStorage.removeItem(`cache_students_list_${classId}`);
       }
       onSuccess();
     } catch (err) { 
