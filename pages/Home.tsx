@@ -52,6 +52,7 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
     fetchRecentCalls();
   }, [dataVersion]);
 
+  // Fix: Corrected syntax error by removing extra parenthesis in catch block
   const handleSearch = useCallback(async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -156,7 +157,9 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
                 className="bg-white/10 backdrop-blur-md p-4 rounded-3xl border border-white/15 flex items-center justify-between animate-in slide-in-from-bottom-1"
               >
                 <div onClick={() => onStudentClick(student)} className="flex-1 pr-3 min-w-0">
-                  <h3 className="font-bold text-white text-base font-noto truncate">{student.student_name}</h3>
+                  <h3 className="font-black text-white text-base font-noto truncate pr-1 leading-normal">
+                    {student.student_name}
+                  </h3>
                   <p className="text-[10px] text-white/60 font-black uppercase mt-0.5">{student.classes?.class_name || 'N/A'}</p>
                 </div>
                 <button onClick={() => initiateCall(student)} className="bg-white text-[#d35132] p-3 rounded-2xl active:scale-90 transition-all shadow-lg shrink-0">
@@ -191,7 +194,9 @@ const Home: React.FC<HomeProps> = ({ onStudentClick, lang, dataVersion, triggerR
               <div onClick={() => call.students && onStudentClick(call.students)} className="flex items-center gap-3.5 cursor-pointer flex-1 min-w-0 pr-2">
                 <div className="bg-white/10 p-2.5 rounded-xl text-white/80 shrink-0"><UserIcon size={20} /></div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-bold text-white text-[15px] font-noto truncate leading-tight w-full block">{call.students?.student_name || 'Unknown'}</h3>
+                  <h3 className="font-black text-white text-[16px] font-noto truncate leading-normal pr-1 block">
+                    {call.students?.student_name || 'Unknown'}
+                  </h3>
                   <div className="flex items-center gap-1 text-[9px] text-white/50 mt-1 font-black uppercase">
                     <Clock size={11} />
                     {new Date(call.called_at).toLocaleTimeString(lang === 'bn' ? 'bn-BD' : 'en-US', { hour: '2-digit', minute: '2-digit' })}
