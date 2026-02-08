@@ -1,6 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Loader2, Search, Smartphone, Shield, ShieldOff, ChevronRight, User as UserIcon, Users, CheckCircle2, Ban, RefreshCw, Copy, Check, Eye, EyeOff, Edit3, GraduationCap, MonitorSmartphone, Clock, AlertTriangle } from 'lucide-react';
+// Added Lock to imports
+import { Loader2, Search, Smartphone, Shield, ShieldOff, ChevronRight, User as UserIcon, Users, CheckCircle2, Ban, RefreshCw, Copy, Check, Eye, EyeOff, Edit3, GraduationCap, MonitorSmartphone, Clock, AlertTriangle, Tablet, Laptop, Monitor, Hash, PhoneCall, Lock } from 'lucide-react';
 import { supabase } from '../supabase';
 import { Madrasah, Language } from '../types';
 
@@ -21,32 +22,28 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [copying, setCopying] = useState<string | null>(null);
-  const [showPass, setShowPass] = useState(false);
   
   const [view, setView] = useState<'list' | 'details'>('list');
-  const [selectedMadrasah, setSelectedMadrasah] = useState<any | null>(null);
-  const [studentCount, setStudentCount] = useState<number | null>(null);
+  const [selectedMadrasah, setSelectedMadrasah] = useState<Madrasah | null>(null);
+  const [studentCount, setStudentCount] = useState<number>(0);
   const [devices, setDevices] = useState<DeviceSession[]>([]);
-  const [loadingCount, setLoadingCount] = useState(false);
-  const [loadingDevices, setLoadingDevices] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ name: '', phone: '', login_code: '' });
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [showPass, setShowPass] = useState(false);
+  const [copying, setCopying] = useState<string | null>(null);
 
   useEffect(() => {
     fetchAllMadrasahs();
   }, []);
 
   useEffect(() => {
-    if (view === 'details' && selectedMadrasah?.id) {
-      fetchStudentCount(selectedMadrasah.id);
-      fetchDevices(selectedMadrasah.id);
+    if (view === 'details' && selectedMadrasah) {
+      fetchMadrasahStats(selectedMadrasah.id);
+      setShowPass(false);
     }
-  }, [view, selectedMadrasah?.id]);
+  }, [view, selectedMadrasah]);
 
   const fetchAllMadrasahs = async () => {
     setLoading(true);
-    setError(null);
     try {
       const { data, error: fetchError } = await supabase
         .from('madrasahs')
@@ -57,48 +54,38 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
       if (fetchError) throw fetchError;
       setMadrasahs(data || []);
     } catch (err: any) {
-      console.error("Admin Fetch Error:", err);
-      setError(lang === 'bn' ? "মাদরাসা তালিকা লোড করা যায়নি। আরএলএস (RLS) পলিসি চেক করুন।" : "Could not load list. Check RLS policies.");
+      setError("মাদরাসা তালিকা লোড করা যায়নি।");
     } finally {
       setLoading(false);
     }
   };
 
-  const fetchStudentCount = async (madrasahId: string) => {
-    setLoadingCount(true);
-    setStudentCount(null);
+  const fetchMadrasahStats = async (madrasahId: string) => {
+    setLoadingStats(true);
     try {
-      const { count, error: countErr } = await supabase
+      // 1. Fetch Students Count
+      const { count, error: studentError } = await supabase
         .from('students')
-        .select('*', { count: 'exact', head: true })
+        .select('id', { count: 'exact', head: true })
         .eq('madrasah_id', madrasahId);
       
-      if (countErr) throw countErr;
+      if (studentError) throw studentError;
       setStudentCount(count || 0);
-    } catch (err) {
-      console.error("Student count error:", err);
-      setStudentCount(0);
-    } finally {
-      setLoadingCount(false);
-    }
-  };
 
-  const fetchDevices = async (madrasahId: string) => {
-    setLoadingDevices(true);
-    setDevices([]);
-    try {
-      const { data, error: devErr } = await supabase
+      // 2. Fetch Devices
+      const { data: deviceData, error: deviceError } = await supabase
         .from('device_sessions')
         .select('*')
-        .eq('madrasah_id', madrasahId);
+        .eq('madrasah_id', madrasahId)
+        .order('last_active', { ascending: false });
       
-      if (devErr) throw devErr;
-      setDevices(data || []);
-    } catch (err) {
-      console.error("Device fetch error:", err);
-      setDevices([]);
+      if (deviceError) throw deviceError;
+      setDevices(deviceData || []);
+
+    } catch (err: any) {
+      console.error("Stats Fetch Error:", err);
     } finally {
-      setLoadingDevices(false);
+      setLoadingStats(false);
     }
   };
 
@@ -111,44 +98,23 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
       
       setMadrasahs(prev => prev.map(item => item.id === m.id ? { ...item, is_active: newStatus } : item));
       if (selectedMadrasah?.id === m.id) setSelectedMadrasah({ ...selectedMadrasah, is_active: newStatus });
-    } catch (err) {
-      alert("Status update failed");
-    } finally {
-      setUpdatingId(null);
-    }
-  };
-
-  const saveChanges = async () => {
-    if (!selectedMadrasah) return;
-    setUpdatingId(selectedMadrasah.id);
-    try {
-      const { error: saveErr } = await supabase
-        .from('madrasahs')
-        .update({
-          name: editForm.name.trim(),
-          phone: editForm.phone.trim(),
-          login_code: editForm.login_code.trim()
-        })
-        .eq('id', selectedMadrasah.id);
-
-      if (saveErr) throw saveErr;
-      
-      const updated = { ...selectedMadrasah, ...editForm };
-      setMadrasahs(prev => prev.map(m => m.id === selectedMadrasah.id ? updated : m));
-      setSelectedMadrasah(updated);
-      setIsEditing(false);
-    } catch (err) {
-      alert('Save failed');
     } finally {
       setUpdatingId(null);
     }
   };
 
   const copyToClipboard = (text: string, key: string) => {
-    if (!text) return;
     navigator.clipboard.writeText(text);
     setCopying(key);
     setTimeout(() => setCopying(null), 2000);
+  };
+
+  const getDeviceIcon = (info: string) => {
+    const lower = info.toLowerCase();
+    if (lower.includes('android')) return <Smartphone size={16} />;
+    if (lower.includes('iphone') || lower.includes('ios')) return <Smartphone size={16} />;
+    if (lower.includes('pc') || lower.includes('windows')) return <Monitor size={16} />;
+    return <Smartphone size={16} />;
   };
 
   const filtered = useMemo(() => {
@@ -160,17 +126,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
   if (loading) return (
     <div className="py-20 flex flex-col items-center justify-center gap-4">
       <Loader2 className="animate-spin text-white" size={40} />
-      <p className="text-white/60 font-black text-[10px] uppercase tracking-widest">মাদরাসা তালিকা লোড হচ্ছে...</p>
-    </div>
-  );
-
-  if (error) return (
-    <div className="py-20 flex flex-col items-center justify-center gap-4 px-10 text-center">
-      <AlertTriangle className="text-white/40" size={48} />
-      <p className="text-white font-bold font-noto">{error}</p>
-      <button onClick={fetchAllMadrasahs} className="bg-white text-[#d35132] px-6 py-2 rounded-xl font-bold flex items-center gap-2">
-        <RefreshCw size={16} /> পুনরায় চেষ্টা করুন
-      </button>
+      <p className="text-white/60 font-black text-[10px] uppercase tracking-widest">লোড হচ্ছে...</p>
     </div>
   );
 
@@ -200,31 +156,32 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
           <input
             type="text"
             placeholder="মাদরাসা খুঁজুন..."
-            className="w-full pl-12 pr-5 py-4 bg-white/10 border border-white/20 rounded-2xl outline-none text-white font-bold backdrop-blur-md"
+            className="w-full pl-12 pr-5 py-4 bg-white/10 border border-white/20 rounded-2xl outline-none text-white font-bold backdrop-blur-md shadow-inner"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
           />
         </div>
 
         <div className="space-y-3">
-          {filtered.length > 0 ? filtered.map(m => (
+          {filtered.map(m => (
             <button key={m.id} onClick={() => { setSelectedMadrasah(m); setView('details'); }} className="w-full bg-white/10 border border-white/10 rounded-[1.8rem] p-4 flex items-center justify-between active:scale-[0.98] transition-all backdrop-blur-md">
               <div className="flex items-center gap-4 text-left">
-                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center shrink-0">
+                <div className="w-12 h-12 bg-white/10 rounded-2xl flex items-center justify-center shrink-0 border border-white/10">
                    {m.logo_url ? <img src={m.logo_url} className="w-full h-full object-cover rounded-2xl" /> : <UserIcon size={20} className="text-white/30" />}
                 </div>
                 <div>
                   <h3 className="font-black text-white truncate text-sm font-noto">{m.name}</h3>
-                  <span className={`text-[8px] font-black uppercase tracking-wider ${m.is_active !== false ? 'text-green-400' : 'text-red-400'}`}>
-                    {m.is_active !== false ? 'Active' : 'Blocked'}
-                  </span>
+                  <p className="text-[9px] text-white/40 font-bold">{m.phone || 'ফোন নেই'}</p>
                 </div>
               </div>
-              <ChevronRight className="text-white/20" size={20} />
+              <div className="flex items-center gap-3">
+                 <span className={`text-[8px] font-black uppercase tracking-wider px-2 py-1 rounded-lg ${m.is_active !== false ? 'bg-green-500/20 text-green-400' : 'bg-red-500/20 text-red-400'}`}>
+                    {m.is_active !== false ? 'Active' : 'Blocked'}
+                  </span>
+                 <ChevronRight className="text-white/20" size={20} />
+              </div>
             </button>
-          )) : (
-            <div className="text-center py-20 text-white/20 font-bold uppercase tracking-widest text-[10px]">মাদরাসা পাওয়া যায়নি</div>
-          )}
+          ))}
         </div>
       </div>
     );
@@ -232,107 +189,140 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
 
   return (
     <div className="animate-in slide-in-from-right-4 duration-500 pb-20 space-y-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={() => { setView('list'); setIsEditing(false); }} className="p-3 bg-white/10 rounded-xl text-white active:scale-90 transition-all border border-white/20 shadow-lg">
-            <ChevronRight className="rotate-180" size={20} />
-          </button>
-          <h1 className="text-xl font-black text-white font-noto">মাদরাসা তথ্য</h1>
-        </div>
-        {!isEditing && (
-          <button onClick={() => { setEditForm({ name: selectedMadrasah.name, phone: selectedMadrasah.phone || '', login_code: selectedMadrasah.login_code || '' }); setIsEditing(true); }} className="bg-white/10 text-white px-4 py-2 rounded-xl text-xs font-bold border border-white/20">
-            এডিট
-          </button>
-        )}
+      <div className="flex items-center gap-4">
+        <button onClick={() => setView('list')} className="p-3 bg-white/10 rounded-xl text-white active:scale-90 transition-all border border-white/20 shadow-lg">
+          <ChevronRight className="rotate-180" size={20} />
+        </button>
+        <h1 className="text-xl font-black text-white font-noto">মাদরাসা ডিটেইলস</h1>
       </div>
 
-      <div className="bg-white/15 backdrop-blur-2xl rounded-[3rem] p-8 border border-white/20 shadow-2xl space-y-8 text-center">
-        <div className="w-24 h-24 bg-white/10 rounded-full mx-auto border-4 border-white/10 overflow-hidden shadow-inner flex items-center justify-center">
-          {selectedMadrasah.logo_url ? <img src={selectedMadrasah.logo_url} className="w-full h-full object-cover" /> : <UserIcon size={40} className="text-white/30" />}
-        </div>
-        
-        {isEditing ? (
-          <div className="space-y-4 text-left">
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-white/40 uppercase ml-1">মাদরাসার নাম</label>
-              <input className="w-full bg-white/10 border border-white/20 rounded-xl py-3 px-4 text-white font-bold outline-none" value={editForm.name} onChange={e=>setEditForm({...editForm, name: e.target.value})} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-white/40 uppercase ml-1">ফোন</label>
-              <input className="w-full bg-white/10 border border-white/20 rounded-xl py-3 px-4 text-white font-bold outline-none" value={editForm.phone} onChange={e=>setEditForm({...editForm, phone: e.target.value})} />
-            </div>
-            <div className="space-y-1">
-              <label className="text-[10px] font-black text-white/40 uppercase ml-1">লগইন কোড</label>
-              <input className="w-full bg-white/10 border border-white/20 rounded-xl py-3 px-4 text-white font-bold outline-none" value={editForm.login_code} onChange={e=>setEditForm({...editForm, login_code: e.target.value})} />
-            </div>
-            <div className="flex gap-2 pt-2">
-              <button onClick={()=>setIsEditing(false)} className="flex-1 py-4 bg-white/10 text-white rounded-xl font-bold">বাতিল</button>
-              <button onClick={saveChanges} className="flex-1 py-4 bg-green-500 text-white rounded-xl font-bold">সেভ করুন</button>
-            </div>
+      <div className="bg-white/15 backdrop-blur-2xl rounded-[3rem] p-6 border border-white/20 shadow-2xl space-y-8">
+        {/* Profile Header */}
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="w-28 h-28 bg-white/10 rounded-full border-4 border-white/10 overflow-hidden shadow-2xl flex items-center justify-center">
+            {selectedMadrasah?.logo_url ? <img src={selectedMadrasah.logo_url} className="w-full h-full object-cover" /> : <UserIcon size={48} className="text-white/30" />}
           </div>
-        ) : (
-          <>
-            <h2 className="text-2xl font-black text-white font-noto leading-tight">{selectedMadrasah.name}</h2>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/10 p-5 rounded-[2rem] border border-white/20 shadow-inner">
-                <GraduationCap className="mx-auto mb-2 text-white/40" />
-                <div className="text-2xl font-black text-white">
-                  {loadingCount ? <Loader2 className="animate-spin mx-auto" size={18} /> : (studentCount ?? 0)}
-                </div>
-                <div className="text-[8px] font-bold text-white/30 uppercase tracking-widest mt-1">Students</div>
-              </div>
-              <div className="bg-white/10 p-5 rounded-[2rem] border border-white/20 shadow-inner">
-                <MonitorSmartphone className="mx-auto mb-2 text-white/40" />
-                <div className="text-2xl font-black text-white">
-                  {loadingDevices ? <Loader2 className="animate-spin mx-auto" size={18} /> : devices.length}
-                </div>
-                <div className="text-[8px] font-bold text-white/30 uppercase tracking-widest mt-1">Devices</div>
-              </div>
+          <div>
+            <h2 className="text-2xl font-black text-white font-noto leading-tight">{selectedMadrasah?.name}</h2>
+            <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mt-1">Madrasah Profile Information</p>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-white/10 p-5 rounded-[2.2rem] border border-white/10 flex flex-col items-center text-center">
+            <GraduationCap className="text-white/40 mb-2" size={24} />
+            <div className="text-2xl font-black text-white">
+              {loadingStats ? <Loader2 size={20} className="animate-spin text-white/20" /> : studentCount}
             </div>
+            <div className="text-[9px] font-bold text-white/30 uppercase tracking-widest mt-1">Total Students</div>
+          </div>
+          <div className="bg-white/10 p-5 rounded-[2.2rem] border border-white/10 flex flex-col items-center text-center">
+            <MonitorSmartphone className="text-white/40 mb-2" size={24} />
+            <div className="text-2xl font-black text-white">
+              {loadingStats ? <Loader2 size={20} className="animate-spin text-white/20" /> : devices.length}
+            </div>
+            <div className="text-[9px] font-bold text-white/30 uppercase tracking-widest mt-1">Active Devices</div>
+          </div>
+        </div>
 
-            <div className="space-y-4 text-left">
-              <div className="bg-white/5 p-4 rounded-2xl border border-white/10 flex items-center justify-between">
-                <div>
-                  <p className="text-[9px] font-black text-white/30 uppercase mb-1">লগইন কোড</p>
-                  <p className="text-lg font-black text-white tracking-widest">{showPass ? selectedMadrasah.login_code : '••••••'}</p>
-                </div>
-                <div className="flex gap-2">
-                   <button onClick={() => setShowPass(!showPass)} className="p-2 bg-white/10 text-white rounded-lg">
-                      {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
-                   </button>
-                   <button onClick={() => copyToClipboard(selectedMadrasah.login_code, 'code')} className="p-2 bg-white/10 text-white rounded-lg">
-                      {copying === 'code' ? <Check size={16} /> : <Copy size={16} />}
-                   </button>
-                </div>
+        {/* Core Credentials Section */}
+        <div className="space-y-4">
+           <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] px-2 flex items-center gap-2">
+             <Shield size={12} /> Core Credentials
+           </h3>
+           
+           <div className="space-y-3">
+              {/* UUID */}
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center justify-between group">
+                 <div className="flex items-center gap-3 min-w-0">
+                    <Hash size={16} className="text-white/30 shrink-0" />
+                    <div className="min-w-0">
+                       <p className="text-[9px] font-black text-white/30 uppercase mb-0.5 tracking-wider">Madrasah UUID</p>
+                       <p className="text-xs font-mono text-white/80 truncate">{selectedMadrasah?.id}</p>
+                    </div>
+                 </div>
+                 <button onClick={() => copyToClipboard(selectedMadrasah?.id || '', 'uuid')} className="p-2.5 bg-white/10 text-white rounded-xl active:scale-90 transition-all shrink-0">
+                    {copying === 'uuid' ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                 </button>
               </div>
 
-              <div className="space-y-2">
-                <p className="text-[10px] font-bold text-white/40 uppercase tracking-widest ml-2">সক্রিয় সেশন</p>
-                {devices.length > 0 ? devices.map(d => (
-                  <div key={d.id} className="flex items-center justify-between bg-white/5 p-3.5 rounded-2xl border border-white/5">
-                    <div className="flex items-center gap-3">
-                      <Smartphone size={14} className="text-white/40" />
-                      <div>
-                        <p className="text-[11px] font-bold text-white truncate max-w-[120px]">{d.device_info}</p>
-                        <p className="text-[9px] text-white/40 flex items-center gap-1 mt-0.5"><Clock size={10} /> {new Date(d.last_active).toLocaleString('bn-BD')}</p>
+              {/* Phone */}
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center justify-between group">
+                 <div className="flex items-center gap-3">
+                    <PhoneCall size={16} className="text-white/30 shrink-0" />
+                    <div>
+                       <p className="text-[9px] font-black text-white/30 uppercase mb-0.5 tracking-wider">Mobile Number</p>
+                       <p className="text-sm font-black text-white">{selectedMadrasah?.phone || 'Not provided'}</p>
+                    </div>
+                 </div>
+                 <button onClick={() => selectedMadrasah?.phone && copyToClipboard(selectedMadrasah.phone, 'phone')} className="p-2.5 bg-white/10 text-white rounded-xl active:scale-90 transition-all">
+                    {copying === 'phone' ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                 </button>
+              </div>
+
+              {/* Login Code / Password */}
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center justify-between group">
+                 <div className="flex items-center gap-3">
+                    <Lock size={16} className="text-white/30 shrink-0" />
+                    <div>
+                       <p className="text-[9px] font-black text-white/30 uppercase mb-0.5 tracking-wider">Login Code (Password)</p>
+                       <p className="text-lg font-black text-white tracking-[0.2em]">{showPass ? selectedMadrasah?.login_code : '••••••'}</p>
+                    </div>
+                 </div>
+                 <div className="flex gap-2">
+                    <button onClick={() => setShowPass(!showPass)} className="p-2.5 bg-white/10 text-white rounded-xl active:scale-90 transition-all">
+                       {showPass ? <EyeOff size={18} /> : <Eye size={18} />}
+                    </button>
+                    <button onClick={() => copyToClipboard(selectedMadrasah?.login_code || '', 'pass')} className="p-2.5 bg-white/10 text-white rounded-xl active:scale-90 transition-all">
+                       {copying === 'pass' ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
+                    </button>
+                 </div>
+              </div>
+           </div>
+        </div>
+
+        {/* Sessions Section */}
+        <div className="space-y-4">
+          <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] px-2 flex items-center gap-2">
+             <Smartphone size={12} /> Active Login Sessions
+          </h3>
+          <div className="space-y-3 max-h-60 overflow-y-auto pr-1 custom-scrollbar">
+            {loadingStats ? (
+              <div className="flex justify-center py-6"><Loader2 className="animate-spin text-white/20" /></div>
+            ) : devices.length > 0 ? (
+              devices.map(d => (
+                <div key={d.id} className="bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center justify-between animate-in slide-in-from-bottom-2">
+                  <div className="flex items-center gap-4">
+                    <div className="bg-white/10 p-2.5 rounded-xl text-white/40">
+                      {getDeviceIcon(d.device_info)}
+                    </div>
+                    <div>
+                      <p className="text-xs font-black text-white">{d.device_info}</p>
+                      <div className="flex items-center gap-1.5 text-[9px] text-white/30 font-bold mt-1 uppercase">
+                         <Clock size={10} />
+                         {new Date(d.last_active).toLocaleString('bn-BD', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
-                    <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
                   </div>
-                )) : (
-                  <div className="text-center py-4 bg-white/5 rounded-2xl border border-dashed border-white/10 text-white/20 text-xs">কোনো ডিভাইস নেই</div>
-                )}
+                  <div className="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)] animate-pulse"></div>
+                </div>
+              ))
+            ) : (
+              <div className="text-center py-10 bg-white/5 rounded-[2rem] border border-dashed border-white/10">
+                <p className="text-white/20 text-[10px] font-black uppercase tracking-widest">No active sessions found</p>
               </div>
-            </div>
+            )}
+          </div>
+        </div>
 
-            <div className="pt-4">
-              <button onClick={() => toggleStatus(selectedMadrasah)} className={`w-full py-5 rounded-2xl font-black text-sm uppercase flex items-center justify-center gap-3 transition-all ${selectedMadrasah.is_active !== false ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`}>
-                {updatingId ? <Loader2 className="animate-spin" size={20} /> : selectedMadrasah.is_active !== false ? <><ShieldOff size={18} /> ব্লক করুন</> : <><Shield size={18} /> আনব্লক করুন</>}
-              </button>
-            </div>
-          </>
-        )}
+        {/* Footer Actions */}
+        <div className="pt-4 border-t border-white/10">
+          <button onClick={() => selectedMadrasah && toggleStatus(selectedMadrasah)} className={`w-full py-5 rounded-[1.8rem] font-black text-sm uppercase flex items-center justify-center gap-3 shadow-xl transition-all active:scale-95 ${selectedMadrasah?.is_active !== false ? 'bg-red-500 text-white' : 'bg-green-500 text-white'}`}>
+            {updatingId ? <Loader2 className="animate-spin" size={20} /> : selectedMadrasah?.is_active !== false ? <><ShieldOff size={18} /> Block Madrasah Account</> : <><Shield size={18} /> Activate Madrasah Account</>}
+          </button>
+          <p className="text-[9px] text-white/20 text-center mt-4 uppercase font-bold tracking-widest">Management System v1.0</p>
+        </div>
       </div>
     </div>
   );
