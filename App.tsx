@@ -33,6 +33,25 @@ const App: React.FC = () => {
     setDataVersion(prev => prev + 1);
   };
 
+  const registerDevice = async (userId: string) => {
+    try {
+      let deviceId = localStorage.getItem('app_device_id');
+      if (!deviceId) {
+        deviceId = Math.random().toString(36).substring(2) + Date.now().toString(36);
+        localStorage.setItem('app_device_id', deviceId);
+      }
+
+      await supabase.from('device_sessions').upsert({
+        madrasah_id: userId,
+        device_id: deviceId,
+        device_info: navigator.userAgent.split(') ')[0].split(' (')[1] || navigator.userAgent.slice(0, 50),
+        last_active: new Date().toISOString()
+      }, { onConflict: 'madrasah_id, device_id' });
+    } catch (e) {
+      console.error("Device registration failed", e);
+    }
+  };
+
   const handleSync = async () => {
     if (navigator.onLine) {
       setSyncing(true);
@@ -52,20 +71,11 @@ const App: React.FC = () => {
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
 
-    const handleVisibilitySync = () => {
-      if (document.visibilityState === 'visible') {
-        if (navigator.onLine) handleSync();
-        triggerRefresh();
-      }
-    };
-    window.addEventListener('visibilitychange', handleVisibilitySync);
-    window.addEventListener('focus', handleVisibilitySync);
-
-    // Initial load
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       setSession(currentSession);
       if (currentSession) {
         fetchMadrasahProfile(currentSession.user.id);
+        registerDevice(currentSession.user.id);
         handleSync();
       } else {
         setLoading(false);
@@ -76,6 +86,7 @@ const App: React.FC = () => {
       setSession(session);
       if (session) {
         fetchMadrasahProfile(session.user.id);
+        registerDevice(session.user.id);
         handleSync();
       } else {
         setMadrasah(null);
@@ -87,14 +98,11 @@ const App: React.FC = () => {
       subscription.unsubscribe();
       window.removeEventListener('online', handleOnline);
       window.removeEventListener('offline', handleOffline);
-      window.removeEventListener('visibilitychange', handleVisibilitySync);
-      window.removeEventListener('focus', handleVisibilitySync);
     };
   }, []);
 
   const fetchMadrasahProfile = async (userId: string) => {
     try {
-      // Try cache first
       const cached = offlineApi.getCache('profile');
       if (cached) setMadrasah(cached);
 
