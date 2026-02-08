@@ -10,6 +10,8 @@ export interface Madrasah {
   is_super_admin: boolean;
   created_at: string;
   email?: string; // Optional field for admin view
+  // Fix: Added missing login_code property used for authentication and admin display
+  login_code?: string;
 }
 
 export interface Class {
