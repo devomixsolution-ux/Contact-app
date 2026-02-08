@@ -44,38 +44,41 @@ create table if not exists recent_calls (
   called_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 
+-- 6. Device Sessions Table (NEW)
+create table if not exists device_sessions (
+  id uuid default uuid_generate_v4() primary key,
+  madrasah_id uuid references madrasahs(id) on delete cascade not null,
+  device_id text not null, -- Unique ID stored in localStorage
+  device_info text, -- User agent info
+  last_active timestamp with time zone default timezone('utc'::text, now()) not null,
+  unique(madrasah_id, device_id)
+);
+
 -- Enable RLS for all tables
 alter table madrasahs enable row level security;
 alter table classes enable row level security;
 alter table students enable row level security;
 alter table recent_calls enable row level security;
+alter table device_sessions enable row level security;
 
 -- Helper function for Super Admin
-CREATE OR REPLACE FUNCTION is_super_admin()
+CREATE OR REPLACE FUNCTION public.is_super_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
-    SELECT 1 FROM madrasahs
+    SELECT 1 FROM public.madrasahs
     WHERE id = auth.uid() AND is_super_admin = true
   );
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Policies for Madrasahs
-drop policy if exists "Madrasah: Select self or as super" on madrasahs;
-create policy "Madrasah: Select self or as super" on madrasahs for select using (auth.uid() = id or is_super_admin());
+-- Policies
+create policy "Madrasah: Select self or as super" on madrasahs for select using (auth.uid() = id or public.is_super_admin());
+create policy "Madrasah: Update self or as super" on madrasahs for update using (auth.uid() = id or public.is_super_admin());
 
-drop policy if exists "Madrasah: Update self or as super" on madrasahs;
-create policy "Madrasah: Update self or as super" on madrasahs for update using (auth.uid() = id or is_super_admin());
+create policy "Classes: Madrasah owner access" on classes for all using (auth.uid() = madrasah_id or public.is_super_admin());
+create policy "Students: Madrasah owner access" on students for all using (auth.uid() = madrasah_id or public.is_super_admin());
+create policy "Calls: Madrasah owner access" on recent_calls for all using (auth.uid() = madrasah_id or public.is_super_admin());
 
--- Policies for Classes
-drop policy if exists "Classes: Madrasah owner access" on classes;
-create policy "Classes: Madrasah owner access" on classes for all using (auth.uid() = madrasah_id);
-
--- Policies for Students
-drop policy if exists "Students: Madrasah owner access" on students;
-create policy "Students: Madrasah owner access" on students for all using (auth.uid() = madrasah_id);
-
--- Policies for Recent Calls
-drop policy if exists "Calls: Madrasah owner access" on recent_calls;
-create policy "Calls: Madrasah owner access" on recent_calls for all using (auth.uid() = madrasah_id);
+-- Device Sessions Policies
+create policy "Sessions: Madrasah owner access" on device_sessions for all using (auth.uid() = madrasah_id or public.is_super_admin());
