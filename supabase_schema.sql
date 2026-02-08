@@ -1,3 +1,4 @@
+
 -- ১. প্রয়োজনীয় এক্সটেনশন
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
@@ -50,32 +51,42 @@ ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.device_sessions ENABLE ROW LEVEL SECURITY;
 
--- ৬. রিকারশন-সেফ সুপার অ্যাডমিন চেক (SECURITY DEFINER ব্যবহার করে সরাসরি টেবিল অ্যাক্সেস)
+-- ৬. রিকারশন-সেফ সুপার অ্যাডমিন চেক (SECURITY DEFINER ব্যবহার করে লুপ ঠেকানো)
 CREATE OR REPLACE FUNCTION public.check_is_super_admin()
 RETURNS BOOLEAN AS $$
-DECLARE
-  is_admin BOOLEAN;
 BEGIN
-  SELECT is_super_admin INTO is_admin FROM public.madrasahs WHERE id = auth.uid();
-  RETURN COALESCE(is_admin, false);
+  RETURN EXISTS (
+    SELECT 1 FROM public.madrasahs 
+    WHERE id = auth.uid() AND is_super_admin = true
+  );
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- ৭. মাদরাসা টেবিলের পলিসি (রিকারশন মুক্ত)
+-- ৭. মাদরাসা টেবিলের পলিসি (রিকারশন মুক্ত সংস্করণ)
 DROP POLICY IF EXISTS "madrasahs_select" ON public.madrasahs;
 CREATE POLICY "madrasahs_select" ON public.madrasahs 
-FOR SELECT USING (auth.uid() = id OR (SELECT is_super_admin FROM public.madrasahs WHERE id = auth.uid()));
+FOR SELECT USING (
+    auth.uid() = id OR public.check_is_super_admin()
+);
 
 DROP POLICY IF EXISTS "madrasahs_update" ON public.madrasahs;
 CREATE POLICY "madrasahs_update" ON public.madrasahs 
-FOR UPDATE USING (auth.uid() = id OR (SELECT is_super_admin FROM public.madrasahs WHERE id = auth.uid()));
+FOR UPDATE USING (
+    auth.uid() = id OR public.check_is_super_admin()
+);
 
--- ৮. অন্যান্য টেবিলের পলিসি
+-- ৮. অন্যান্য টেবিলের পলিসি (সুপার অ্যাডমিনদের পূর্ণ এক্সেস দেওয়া)
 DROP POLICY IF EXISTS "Classes: Access" ON public.classes;
-CREATE POLICY "Classes: Access" ON public.classes FOR ALL USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
+CREATE POLICY "Classes: Access" ON public.classes FOR ALL USING (
+    auth.uid() = madrasah_id OR public.check_is_super_admin()
+);
 
 DROP POLICY IF EXISTS "Students: Access" ON public.students;
-CREATE POLICY "Students: Access" ON public.students FOR ALL USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
+CREATE POLICY "Students: Access" ON public.students FOR ALL USING (
+    auth.uid() = madrasah_id OR public.check_is_super_admin()
+);
 
 DROP POLICY IF EXISTS "Sessions: Access" ON public.device_sessions;
-CREATE POLICY "Sessions: Access" ON public.device_sessions FOR ALL USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
+CREATE POLICY "Sessions: Access" ON public.device_sessions FOR ALL USING (
+    auth.uid() = madrasah_id OR public.check_is_super_admin()
+);
