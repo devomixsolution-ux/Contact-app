@@ -1,12 +1,19 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Loader2, Search, Smartphone, Shield, ShieldOff, ChevronRight, User as UserIcon, AlertCircle, Calendar, Users, CheckCircle2, Ban, RefreshCw, Copy, Check, Lock, Eye, EyeOff, Edit3, Save, X, GraduationCap } from 'lucide-react';
+import { Loader2, Search, Smartphone, Shield, ShieldOff, ChevronRight, User as UserIcon, AlertCircle, Calendar, Users, CheckCircle2, Ban, RefreshCw, Copy, Check, Lock, Eye, EyeOff, Edit3, Save, X, GraduationCap, MonitorSmartphone, Clock } from 'lucide-react';
 import { supabase } from '../supabase';
 import { Madrasah, Language } from '../types';
 import { t } from '../translations';
 
 interface AdminPanelProps {
   lang: Language;
+}
+
+interface DeviceSession {
+  id: string;
+  device_info: string;
+  last_active: string;
+  device_id: string;
 }
 
 const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
@@ -21,13 +28,22 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
   const [view, setView] = useState<'list' | 'details'>('list');
   const [selectedMadrasah, setSelectedMadrasah] = useState<any | null>(null);
   const [studentCount, setStudentCount] = useState<number | null>(null);
+  const [devices, setDevices] = useState<DeviceSession[]>([]);
   const [loadingCount, setLoadingCount] = useState(false);
+  const [loadingDevices, setLoadingDevices] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', phone: '', login_code: '' });
 
   useEffect(() => {
     fetchAllMadrasahs();
   }, []);
+
+  useEffect(() => {
+    if (view === 'details' && selectedMadrasah?.id) {
+      fetchStudentCount(selectedMadrasah.id);
+      fetchDevices(selectedMadrasah.id);
+    }
+  }, [view, selectedMadrasah?.id]);
 
   const fetchAllMadrasahs = async () => {
     setLoading(true);
@@ -46,7 +62,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
       setMadrasahs(data || []);
     } catch (err: any) {
       console.error(err);
-      setError("মাদরাসা তালিকা লোড করা যায়নি। আরএলএস পলিসি চেক করুন।");
+      setError("মাদরাসা তালিকা লোড করা যায়নি।");
     } finally {
       setLoading(false);
     }
@@ -54,26 +70,44 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
 
   const fetchStudentCount = async (madrasahId: string) => {
     setLoadingCount(true);
+    setStudentCount(null);
     try {
-      const { count, error } = await supabase
+      const { count, error: countError } = await supabase
         .from('students')
         .select('*', { count: 'exact', head: true })
         .eq('madrasah_id', madrasahId);
       
-      if (!error) setStudentCount(count || 0);
+      if (countError) throw countError;
+      setStudentCount(count || 0);
     } catch (err) {
-      console.error("Error fetching student count:", err);
       setStudentCount(0);
     } finally {
       setLoadingCount(false);
     }
   };
 
+  const fetchDevices = async (madrasahId: string) => {
+    setLoadingDevices(true);
+    setDevices([]);
+    try {
+      const { data, error } = await supabase
+        .from('device_sessions')
+        .select('*')
+        .eq('madrasah_id', madrasahId)
+        .order('last_active', { ascending: false });
+      
+      if (error) throw error;
+      setDevices(data || []);
+    } catch (err) {
+      console.error("Error fetching devices:", err);
+    } finally {
+      setLoadingDevices(false);
+    }
+  };
+
   const handleSelectMadrasah = (m: Madrasah) => {
     setSelectedMadrasah(m);
-    setStudentCount(null);
     setView('details');
-    fetchStudentCount(m.id);
   };
 
   const handleEdit = (m: any) => {
@@ -102,7 +136,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
 
       if (error) throw error;
 
-      // Update local state
       const updatedMadrasah = { ...selectedMadrasah, ...editForm };
       setMadrasahs(prev => prev.map(m => m.id === selectedMadrasah.id ? updatedMadrasah : m));
       setSelectedMadrasah(updatedMadrasah);
@@ -146,6 +179,12 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
   const formatDate = (date: string) => {
     return new Date(date).toLocaleDateString(lang === 'bn' ? 'bn-BD' : 'en-US', {
       day: 'numeric', month: 'short', year: 'numeric'
+    });
+  };
+
+  const formatTime = (date: string) => {
+    return new Date(date).toLocaleTimeString(lang === 'bn' ? 'bn-BD' : 'en-US', {
+      hour: '2-digit', minute: '2-digit'
     });
   };
 
@@ -266,7 +305,6 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
           )}
 
           <div className="space-y-4 text-left">
-            {/* UUID Section */}
             <div className="bg-white/5 p-4 rounded-2xl border border-white/10 flex justify-between items-center relative">
               <div className="min-w-0 flex-1">
                 <p className="text-[8px] font-black text-white/30 uppercase tracking-widest mb-1">Unique ID (UUID)</p>
@@ -280,25 +318,79 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
               </button>
             </div>
 
-            {/* TOTAL STUDENTS STATS */}
-            <div className="bg-white/10 p-5 rounded-[2rem] border border-white/20 flex items-center justify-between shadow-inner">
-               <div className="flex items-center gap-4">
-                 <div className="w-12 h-12 bg-white text-[#d35132] rounded-2xl flex items-center justify-center shadow-lg">
-                    <GraduationCap size={24} strokeWidth={2.5} />
+            <div className="grid grid-cols-1 gap-4">
+              {/* TOTAL STUDENTS STATS */}
+              <div className="bg-white/10 p-5 rounded-[2rem] border border-white/20 flex items-center justify-between shadow-inner">
+                 <div className="flex items-center gap-4">
+                   <div className="w-12 h-12 bg-white text-[#d35132] rounded-2xl flex items-center justify-center shadow-lg">
+                      <GraduationCap size={24} strokeWidth={2.5} />
+                   </div>
+                   <div>
+                      <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-0.5">মাদরাসার মোট ছাত্র</p>
+                      <div className="text-2xl font-black text-white leading-none">
+                        {loadingCount ? (
+                          <span className="animate-pulse opacity-50">...</span>
+                        ) : (
+                          studentCount !== null ? studentCount : '0'
+                        )}
+                      </div>
+                   </div>
                  </div>
-                 <div>
-                    <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-0.5">মাদরাসার মোট ছাত্র</p>
-                    <div className="text-2xl font-black text-white leading-none">
-                      {loadingCount ? <Loader2 className="animate-spin" size={20} /> : (studentCount !== null ? studentCount : '0')}
+                 <button 
+                    onClick={() => fetchStudentCount(selectedMadrasah.id)}
+                    disabled={loadingCount}
+                    className="bg-white/10 p-3 rounded-xl text-white hover:bg-white/20 transition-all active:scale-90 disabled:opacity-50"
+                 >
+                    <RefreshCw size={14} className={loadingCount ? 'animate-spin' : ''} />
+                 </button>
+              </div>
+
+              {/* LOGGED IN DEVICES LIST */}
+              <div className="bg-white/10 p-5 rounded-[2rem] border border-white/20 space-y-4 shadow-inner">
+                 <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-4">
+                      <div className="w-12 h-12 bg-white text-[#2a86ff] rounded-2xl flex items-center justify-center shadow-lg">
+                          <MonitorSmartphone size={24} strokeWidth={2.5} className="text-[#2a86ff]" />
+                      </div>
+                      <div>
+                          <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-0.5">লগইন করা ডিভাইস</p>
+                          <div className="text-2xl font-black text-white leading-none">
+                            {loadingDevices ? '...' : devices.length}
+                          </div>
+                      </div>
                     </div>
+                    <button 
+                        onClick={() => fetchDevices(selectedMadrasah.id)}
+                        disabled={loadingDevices}
+                        className="bg-white/10 p-3 rounded-xl text-white hover:bg-white/20 transition-all active:scale-90 disabled:opacity-50"
+                    >
+                        <RefreshCw size={14} className={loadingDevices ? 'animate-spin' : ''} />
+                    </button>
                  </div>
-               </div>
-               <div className="bg-white/10 px-3 py-1.5 rounded-lg">
-                  <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Students</span>
-               </div>
+
+                 {/* Device Details List */}
+                 {devices.length > 0 && (
+                   <div className="space-y-2 mt-4 pt-4 border-t border-white/10">
+                      {devices.map(device => (
+                        <div key={device.id} className="flex items-center justify-between bg-white/5 p-3 rounded-xl border border-white/5">
+                          <div className="flex items-center gap-3">
+                            <div className="text-white/40"><Smartphone size={14} /></div>
+                            <div className="min-w-0">
+                               <p className="text-[11px] font-bold text-white truncate">{device.device_info || 'Unknown Device'}</p>
+                               <div className="flex items-center gap-1.5 mt-0.5">
+                                  <Clock size={10} className="text-white/30" />
+                                  <p className="text-[9px] text-white/40">{formatDate(device.last_active)} • {formatTime(device.last_active)}</p>
+                               </div>
+                            </div>
+                          </div>
+                          <div className="w-1.5 h-1.5 rounded-full bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.6)]"></div>
+                        </div>
+                      ))}
+                   </div>
+                 )}
+              </div>
             </div>
 
-            {/* PASSWORD / LOGIN CODE Section */}
             <div className="bg-gradient-to-br from-white/10 to-transparent p-5 rounded-3xl border border-white/20 space-y-4 shadow-inner">
               <h3 className="text-[10px] font-black text-white/40 uppercase tracking-[0.2em] px-1 flex items-center gap-2">
                 <Lock size={12} /> লগইন কোড (Password)
