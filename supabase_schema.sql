@@ -1,68 +1,67 @@
+-- ১. প্রয়োজনীয় এক্সটেনশন চালু করা
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- 1. Enable extensions
-create extension if not exists "uuid-ossp";
-
--- 2. Madrasahs Table
-create table if not exists madrasahs (
-  id uuid primary key references auth.users(id) on delete cascade,
-  name text not null default 'নতুন মাদরাসা',
-  phone text,
-  logo_url text,
-  login_code text, 
-  is_active boolean default true,
-  is_super_admin boolean default false,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+-- ২. মাদরাসা টেবিল তৈরি (মেইন প্রোফাইল)
+CREATE TABLE IF NOT EXISTS public.madrasahs (
+    id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL DEFAULT 'নতুন মাদরাসা',
+    phone TEXT,
+    logo_url TEXT,
+    login_code TEXT, 
+    is_active BOOLEAN DEFAULT true,
+    is_super_admin BOOLEAN DEFAULT false,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 3. Classes Table
-create table if not exists classes (
-  id uuid default uuid_generate_v4() primary key,
-  madrasah_id uuid references madrasahs(id) on delete cascade not null,
-  class_name text not null,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+-- ৩. ক্লাস টেবিল
+CREATE TABLE IF NOT EXISTS public.classes (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    madrasah_id UUID REFERENCES public.madrasahs(id) ON DELETE CASCADE NOT NULL,
+    class_name TEXT NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 4. Students Table
-create table if not exists students (
-  id uuid default uuid_generate_v4() primary key,
-  madrasah_id uuid references madrasahs(id) on delete cascade not null,
-  class_id uuid references classes(id) on delete cascade not null,
-  student_name text not null,
-  guardian_name text,
-  roll integer,
-  guardian_phone text not null,
-  guardian_phone_2 text,
-  created_at timestamp with time zone default timezone('utc'::text, now()) not null
+-- ৪. ছাত্র টেবিল
+CREATE TABLE IF NOT EXISTS public.students (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    madrasah_id UUID REFERENCES public.madrasahs(id) ON DELETE CASCADE NOT NULL,
+    class_id UUID REFERENCES public.classes(id) ON DELETE CASCADE NOT NULL,
+    student_name TEXT NOT NULL,
+    guardian_name TEXT,
+    roll INTEGER,
+    guardian_phone TEXT NOT NULL,
+    guardian_phone_2 TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 5. Recent Calls Table
-create table if not exists recent_calls (
-  id uuid default uuid_generate_v4() primary key,
-  madrasah_id uuid references madrasahs(id) on delete cascade not null,
-  student_id uuid references students(id) on delete cascade not null,
-  guardian_phone text not null,
-  called_at timestamp with time zone default timezone('utc'::text, now()) not null
+-- ৫. কল হিস্ট্রি টেবিল
+CREATE TABLE IF NOT EXISTS public.recent_calls (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    madrasah_id UUID REFERENCES public.madrasahs(id) ON DELETE CASCADE NOT NULL,
+    student_id UUID REFERENCES public.students(id) ON DELETE CASCADE NOT NULL,
+    guardian_phone TEXT NOT NULL,
+    called_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- 6. Device Sessions Table (NEW)
-create table if not exists device_sessions (
-  id uuid default uuid_generate_v4() primary key,
-  madrasah_id uuid references madrasahs(id) on delete cascade not null,
-  device_id text not null, -- Unique ID stored in localStorage
-  device_info text, -- User agent info
-  last_active timestamp with time zone default timezone('utc'::text, now()) not null,
-  unique(madrasah_id, device_id)
+-- ৬. ডিভাইস সেশন টেবিল (ডিভাইস ট্র্যাকিং এর জন্য)
+CREATE TABLE IF NOT EXISTS public.device_sessions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    madrasah_id UUID REFERENCES public.madrasahs(id) ON DELETE CASCADE NOT NULL,
+    device_id TEXT NOT NULL, 
+    device_info TEXT, 
+    last_active TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    UNIQUE(madrasah_id, device_id)
 );
 
--- Enable RLS for all tables
-alter table madrasahs enable row level security;
-alter table classes enable row level security;
-alter table students enable row level security;
-alter table recent_calls enable row level security;
-alter table device_sessions enable row level security;
+-- RLS চালু করা
+ALTER TABLE public.madrasahs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.recent_calls ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.device_sessions ENABLE ROW LEVEL SECURITY;
 
--- Helper function for Super Admin
-CREATE OR REPLACE FUNCTION public.is_super_admin()
+-- ৭. রিকারশন-সেফ সুপার অ্যাডমিন চেক ফাংশন
+CREATE OR REPLACE FUNCTION public.check_is_super_admin()
 RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
@@ -72,13 +71,30 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Policies
-create policy "Madrasah: Select self or as super" on madrasahs for select using (auth.uid() = id or public.is_super_admin());
-create policy "Madrasah: Update self or as super" on madrasahs for update using (auth.uid() = id or public.is_super_admin());
+-- ৮. মাদরাসা টেবিলের পলিসি (আপনার দেওয়া কোড অনুযায়ী)
+DROP POLICY IF EXISTS "madrasahs_select_all" ON public.madrasahs;
+CREATE POLICY "madrasahs_select_all" ON public.madrasahs 
+FOR SELECT USING (auth.uid() = id OR public.check_is_super_admin());
 
-create policy "Classes: Madrasah owner access" on classes for all using (auth.uid() = madrasah_id or public.is_super_admin());
-create policy "Students: Madrasah owner access" on students for all using (auth.uid() = madrasah_id or public.is_super_admin());
-create policy "Calls: Madrasah owner access" on recent_calls for all using (auth.uid() = madrasah_id or public.is_super_admin());
+DROP POLICY IF EXISTS "madrasahs_update_all" ON public.madrasahs;
+CREATE POLICY "madrasahs_update_all" ON public.madrasahs 
+FOR UPDATE USING (auth.uid() = id OR public.check_is_super_admin());
 
--- Device Sessions Policies
-create policy "Sessions: Madrasah owner access" on device_sessions for all using (auth.uid() = madrasah_id or public.is_super_admin());
+DROP POLICY IF EXISTS "madrasahs_insert_self" ON public.madrasahs;
+CREATE POLICY "madrasahs_insert_self" ON public.madrasahs 
+FOR INSERT WITH CHECK (auth.uid() = id);
+
+-- ৯. ফিচার টেবিলের পলিসি
+CREATE POLICY "Classes access" ON public.classes FOR ALL USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
+CREATE POLICY "Students access" ON public.students FOR ALL USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
+CREATE POLICY "Calls access" ON public.recent_calls FOR ALL USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
+
+-- ১০. ডিভাইস সেশন পলিসি
+DROP POLICY IF EXISTS "Sessions: Access Policy" ON public.device_sessions;
+CREATE POLICY "Sessions: Access Policy" 
+ON public.device_sessions 
+FOR ALL 
+USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
+
+-- ১১. নিজেকে সুপার অ্যাডমিন বানানো (আপনার আইডি এখানে দিন)
+-- UPDATE public.madrasahs SET is_super_admin = true WHERE id = 'YOUR_UUID_HERE';
