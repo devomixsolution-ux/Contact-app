@@ -90,3 +90,5 @@ DROP POLICY IF EXISTS "Sessions: Access" ON public.device_sessions;
 CREATE POLICY "Sessions: Access" ON public.device_sessions FOR ALL USING (
     auth.uid() = madrasah_id OR public.check_is_super_admin()
 );
+-- ৫. নিজেকে সুপার অ্যাডমিন বানানো (আপনার আইডি এখানে দিন)
+UPDATE madrasahs SET is_super_admin = true WHERE id = '06eecee1-25cc-4add-9bc5-40eaade3574a';
