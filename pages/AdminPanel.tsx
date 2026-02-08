@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Loader2, Search, Smartphone, Shield, ShieldOff, ChevronRight, User as UserIcon, AlertCircle, Calendar, Users, CheckCircle2, Ban, RefreshCw, Copy, Check, Lock, Eye, EyeOff, Edit3, Save, X } from 'lucide-react';
+import { Loader2, Search, Smartphone, Shield, ShieldOff, ChevronRight, User as UserIcon, AlertCircle, Calendar, Users, CheckCircle2, Ban, RefreshCw, Copy, Check, Lock, Eye, EyeOff, Edit3, Save, X, GraduationCap } from 'lucide-react';
 import { supabase } from '../supabase';
 import { Madrasah, Language } from '../types';
 import { t } from '../translations';
@@ -20,6 +20,8 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
   
   const [view, setView] = useState<'list' | 'details'>('list');
   const [selectedMadrasah, setSelectedMadrasah] = useState<any | null>(null);
+  const [studentCount, setStudentCount] = useState<number | null>(null);
+  const [loadingCount, setLoadingCount] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: '', phone: '', login_code: '' });
 
@@ -48,6 +50,30 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchStudentCount = async (madrasahId: string) => {
+    setLoadingCount(true);
+    try {
+      const { count, error } = await supabase
+        .from('students')
+        .select('*', { count: 'exact', head: true })
+        .eq('madrasah_id', madrasahId);
+      
+      if (!error) setStudentCount(count || 0);
+    } catch (err) {
+      console.error("Error fetching student count:", err);
+      setStudentCount(0);
+    } finally {
+      setLoadingCount(false);
+    }
+  };
+
+  const handleSelectMadrasah = (m: Madrasah) => {
+    setSelectedMadrasah(m);
+    setStudentCount(null);
+    setView('details');
+    fetchStudentCount(m.id);
   };
 
   const handleEdit = (m: any) => {
@@ -176,7 +202,7 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
           {filtered.length > 0 ? filtered.map(m => (
             <button 
               key={m.id} 
-              onClick={() => { setSelectedMadrasah(m); setIsEditing(false); setView('details'); }}
+              onClick={() => handleSelectMadrasah(m)}
               className={`w-full bg-white/10 border ${m.is_active === false ? 'border-red-500/30' : 'border-white/10'} rounded-[1.8rem] p-4 flex items-center justify-between active:scale-[0.98] transition-all backdrop-blur-md`}
             >
               <div className="flex items-center gap-4 text-left min-w-0">
@@ -252,6 +278,24 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
               >
                 {copying === 'uuid' ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
               </button>
+            </div>
+
+            {/* TOTAL STUDENTS STATS */}
+            <div className="bg-white/10 p-5 rounded-[2rem] border border-white/20 flex items-center justify-between shadow-inner">
+               <div className="flex items-center gap-4">
+                 <div className="w-12 h-12 bg-white text-[#d35132] rounded-2xl flex items-center justify-center shadow-lg">
+                    <GraduationCap size={24} strokeWidth={2.5} />
+                 </div>
+                 <div>
+                    <p className="text-[10px] font-black text-white/50 uppercase tracking-[0.2em] mb-0.5">মাদরাসার মোট ছাত্র</p>
+                    <div className="text-2xl font-black text-white leading-none">
+                      {loadingCount ? <Loader2 className="animate-spin" size={20} /> : (studentCount !== null ? studentCount : '0')}
+                    </div>
+                 </div>
+               </div>
+               <div className="bg-white/10 px-3 py-1.5 rounded-lg">
+                  <span className="text-[10px] font-black text-white/80 uppercase tracking-widest">Students</span>
+               </div>
             </div>
 
             {/* PASSWORD / LOGIN CODE Section */}
