@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase, offlineApi } from './supabase';
 import Auth from './pages/Auth';
@@ -41,14 +40,20 @@ const App: React.FC = () => {
         localStorage.setItem('app_device_id', deviceId);
       }
 
+      const userAgent = navigator.userAgent;
+      let deviceInfo = 'PC/Browser';
+      if (/android/i.test(userAgent)) deviceInfo = 'Android Device';
+      else if (/iPhone|iPad|iPod/i.test(userAgent)) deviceInfo = 'iOS Device';
+      else if (/windows/i.test(userAgent)) deviceInfo = 'Windows PC';
+
       await supabase.from('device_sessions').upsert({
         madrasah_id: userId,
         device_id: deviceId,
-        device_info: navigator.userAgent.split(') ')[0].split(' (')[1] || navigator.userAgent.slice(0, 50),
+        device_info: deviceInfo,
         last_active: new Date().toISOString()
       }, { onConflict: 'madrasah_id, device_id' });
     } catch (e) {
-      console.error("Device registration failed", e);
+      console.warn("Device registration skipped:", e);
     }
   };
 
@@ -76,7 +81,6 @@ const App: React.FC = () => {
       if (currentSession) {
         fetchMadrasahProfile(currentSession.user.id);
         registerDevice(currentSession.user.id);
-        handleSync();
       } else {
         setLoading(false);
       }
@@ -87,7 +91,6 @@ const App: React.FC = () => {
       if (session) {
         fetchMadrasahProfile(session.user.id);
         registerDevice(session.user.id);
-        handleSync();
       } else {
         setMadrasah(null);
         setLoading(false);
@@ -124,7 +127,7 @@ const App: React.FC = () => {
         }
       }
     } catch (e) {
-      console.error("Profile exception:", e);
+      console.error("Profile load error:", e);
     } finally {
       setLoading(false);
     }
