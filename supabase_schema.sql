@@ -1,7 +1,7 @@
--- ১. প্রয়োজনীয় এক্সটেনশন চালু করা
+-- ১. প্রয়োজনীয় এক্সটেনশন
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- ২. মাদরাসা টেবিল তৈরি (মেইন প্রোফাইল)
+-- ২. মাদরাসা টেবিল
 CREATE TABLE IF NOT EXISTS public.madrasahs (
     id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
     name TEXT NOT NULL DEFAULT 'নতুন মাদরাসা',
@@ -34,16 +34,7 @@ CREATE TABLE IF NOT EXISTS public.students (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
 );
 
--- ৫. কল হিস্ট্রি টেবিল
-CREATE TABLE IF NOT EXISTS public.recent_calls (
-    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
-    madrasah_id UUID REFERENCES public.madrasahs(id) ON DELETE CASCADE NOT NULL,
-    student_id UUID REFERENCES public.students(id) ON DELETE CASCADE NOT NULL,
-    guardian_phone TEXT NOT NULL,
-    called_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
-);
-
--- ৬. ডিভাইস সেশন টেবিল (ডিভাইস ট্র্যাকিং এর জন্য)
+-- ৫. ডিভাইস সেশন টেবিল
 CREATE TABLE IF NOT EXISTS public.device_sessions (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     madrasah_id UUID REFERENCES public.madrasahs(id) ON DELETE CASCADE NOT NULL,
@@ -57,44 +48,34 @@ CREATE TABLE IF NOT EXISTS public.device_sessions (
 ALTER TABLE public.madrasahs ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.recent_calls ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.device_sessions ENABLE ROW LEVEL SECURITY;
 
--- ৭. রিকারশন-সেফ সুপার অ্যাডমিন চেক ফাংশন
+-- ৬. রিকারশন-সেফ সুপার অ্যাডমিন চেক (SECURITY DEFINER ব্যবহার করে সরাসরি টেবিল অ্যাক্সেস)
 CREATE OR REPLACE FUNCTION public.check_is_super_admin()
 RETURNS BOOLEAN AS $$
+DECLARE
+  is_admin BOOLEAN;
 BEGIN
-  RETURN EXISTS (
-    SELECT 1 FROM public.madrasahs
-    WHERE id = auth.uid() AND is_super_admin = true
-  );
+  SELECT is_super_admin INTO is_admin FROM public.madrasahs WHERE id = auth.uid();
+  RETURN COALESCE(is_admin, false);
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
--- ৮. মাদরাসা টেবিলের পলিসি (আপনার দেওয়া কোড অনুযায়ী)
-DROP POLICY IF EXISTS "madrasahs_select_all" ON public.madrasahs;
-CREATE POLICY "madrasahs_select_all" ON public.madrasahs 
-FOR SELECT USING (auth.uid() = id OR public.check_is_super_admin());
+-- ৭. মাদরাসা টেবিলের পলিসি (রিকারশন মুক্ত)
+DROP POLICY IF EXISTS "madrasahs_select" ON public.madrasahs;
+CREATE POLICY "madrasahs_select" ON public.madrasahs 
+FOR SELECT USING (auth.uid() = id OR (SELECT is_super_admin FROM public.madrasahs WHERE id = auth.uid()));
 
-DROP POLICY IF EXISTS "madrasahs_update_all" ON public.madrasahs;
-CREATE POLICY "madrasahs_update_all" ON public.madrasahs 
-FOR UPDATE USING (auth.uid() = id OR public.check_is_super_admin());
+DROP POLICY IF EXISTS "madrasahs_update" ON public.madrasahs;
+CREATE POLICY "madrasahs_update" ON public.madrasahs 
+FOR UPDATE USING (auth.uid() = id OR (SELECT is_super_admin FROM public.madrasahs WHERE id = auth.uid()));
 
-DROP POLICY IF EXISTS "madrasahs_insert_self" ON public.madrasahs;
-CREATE POLICY "madrasahs_insert_self" ON public.madrasahs 
-FOR INSERT WITH CHECK (auth.uid() = id);
+-- ৮. অন্যান্য টেবিলের পলিসি
+DROP POLICY IF EXISTS "Classes: Access" ON public.classes;
+CREATE POLICY "Classes: Access" ON public.classes FOR ALL USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
 
--- ৯. ফিচার টেবিলের পলিসি
-CREATE POLICY "Classes access" ON public.classes FOR ALL USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
-CREATE POLICY "Students access" ON public.students FOR ALL USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
-CREATE POLICY "Calls access" ON public.recent_calls FOR ALL USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
+DROP POLICY IF EXISTS "Students: Access" ON public.students;
+CREATE POLICY "Students: Access" ON public.students FOR ALL USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
 
--- ১০. ডিভাইস সেশন পলিসি
-DROP POLICY IF EXISTS "Sessions: Access Policy" ON public.device_sessions;
-CREATE POLICY "Sessions: Access Policy" 
-ON public.device_sessions 
-FOR ALL 
-USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
-
--- ১১. নিজেকে সুপার অ্যাডমিন বানানো (আপনার আইডি এখানে দিন)
--- UPDATE public.madrasahs SET is_super_admin = true WHERE id = 'YOUR_UUID_HERE';
+DROP POLICY IF EXISTS "Sessions: Access" ON public.device_sessions;
+CREATE POLICY "Sessions: Access" ON public.device_sessions FOR ALL USING (auth.uid() = madrasah_id OR public.check_is_super_admin());
