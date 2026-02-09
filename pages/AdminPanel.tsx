@@ -1,7 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-// Added Lock to imports
-import { Loader2, Search, Smartphone, Shield, ShieldOff, ChevronRight, User as UserIcon, Users, CheckCircle2, Ban, RefreshCw, Copy, Check, Eye, EyeOff, Edit3, GraduationCap, MonitorSmartphone, Clock, AlertTriangle, Tablet, Laptop, Monitor, Hash, PhoneCall, Lock } from 'lucide-react';
+import { Loader2, Search, Smartphone, Shield, ShieldOff, ChevronRight, User as UserIcon, Users, CheckCircle2, Ban, RefreshCw, Copy, Check, Eye, EyeOff, Edit3, GraduationCap, MonitorSmartphone, Clock, AlertTriangle, Tablet, Laptop, Monitor, Hash, PhoneCall, Lock, Calendar } from 'lucide-react';
 import { supabase } from '../supabase';
 import { Madrasah, Language } from '../types';
 
@@ -245,6 +244,21 @@ const AdminPanel: React.FC<AdminPanelProps> = ({ lang }) => {
                  <button onClick={() => copyToClipboard(selectedMadrasah?.id || '', 'uuid')} className="p-2.5 bg-white/10 text-white rounded-xl active:scale-90 transition-all shrink-0">
                     {copying === 'uuid' ? <Check size={16} className="text-green-400" /> : <Copy size={16} />}
                  </button>
+              </div>
+
+              {/* Created Date */}
+              <div className="bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center justify-between group">
+                 <div className="flex items-center gap-3">
+                    <Calendar size={16} className="text-white/30 shrink-0" />
+                    <div>
+                       <p className="text-[9px] font-black text-white/30 uppercase mb-0.5 tracking-wider">Registration Date</p>
+                       <p className="text-sm font-black text-white">
+                          {selectedMadrasah?.created_at 
+                            ? new Date(selectedMadrasah.created_at).toLocaleString('bn-BD', { day: 'numeric', month: 'long', year: 'numeric' }) 
+                            : 'N/A'}
+                       </p>
+                    </div>
+                 </div>
               </div>
 
               {/* Phone */}
