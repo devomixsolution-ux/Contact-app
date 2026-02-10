@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase, offlineApi } from './supabase';
 import Auth from './pages/Auth';
@@ -174,7 +175,14 @@ const App: React.FC = () => {
           />
         )}
         
-        {view === 'classes' && <Classes onClassClick={(cls) => { setSelectedClass(cls); setView('students'); }} lang={lang} dataVersion={dataVersion} />}
+        {view === 'classes' && (
+          <Classes 
+            onClassClick={(cls) => { setSelectedClass(cls); setView('students'); }} 
+            lang={lang} 
+            dataVersion={dataVersion} 
+            triggerRefresh={triggerRefresh} 
+          />
+        )}
         
         {view === 'students' && selectedClass && (
           <Students 
