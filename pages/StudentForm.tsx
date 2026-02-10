@@ -1,9 +1,10 @@
 
 import React, { useState, useEffect } from 'react';
-import { ArrowLeft, Save, User as UserIcon, Phone, List, Hash, Loader2, UserCheck, AlertCircle, X } from 'lucide-react';
+import { ArrowLeft, Save, User as UserIcon, Phone, List, Hash, Loader2, UserCheck, AlertCircle, X, Check, ChevronDown, BookOpen } from 'lucide-react';
 import { supabase, offlineApi } from '../supabase';
 import { Student, Class, Language } from '../types';
 import { t } from '../translations';
+import { sortMadrasahClasses } from './Classes';
 
 interface StudentFormProps {
   student?: Student | null;
@@ -23,6 +24,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
   const [classId, setClassId] = useState(student?.class_id || defaultClassId || '');
   const [classes, setClasses] = useState<Class[]>([]);
   const [loading, setLoading] = useState(false);
+  const [showClassModal, setShowClassModal] = useState(false);
   
   // Custom Alert State
   const [errorModal, setErrorModal] = useState<{show: boolean, message: string}>({show: false, message: ''});
@@ -33,15 +35,21 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
 
   const fetchClasses = async () => {
     const cached = offlineApi.getCache('classes');
-    if (cached) setClasses(cached);
+    if (cached) setClasses(sortMadrasahClasses(cached));
 
     if (navigator.onLine) {
-      const { data } = await supabase.from('classes').select('*').order('class_name');
+      const { data } = await supabase.from('classes').select('*');
       if (data) {
-        setClasses(data);
-        offlineApi.setCache('classes', data);
+        const sorted = sortMadrasahClasses(data);
+        setClasses(sorted);
+        offlineApi.setCache('classes', sorted);
       }
     }
+  };
+
+  const getSelectedClassName = () => {
+    const cls = classes.find(c => c.id === classId);
+    return cls ? cls.class_name : t('class_choose', lang);
   };
 
   const checkDuplicateRoll = async (targetRoll: number, targetClassId: string) => {
@@ -156,7 +164,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
             <input
               type="text"
               required
-              className="w-full px-4 py-3 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all text-sm"
+              className="w-full px-4 py-4 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all text-sm"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
@@ -169,7 +177,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
             </label>
             <input
               type="text"
-              className="w-full px-4 py-3 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all text-sm"
+              className="w-full px-4 py-4 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all text-sm"
               value={guardianName}
               onChange={(e) => setGuardianName(e.target.value)}
             />
@@ -183,7 +191,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
               </label>
               <input
                 type="number"
-                className="w-full px-4 py-3 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all text-center text-sm"
+                className="w-full px-4 py-4 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all text-center text-sm"
                 value={roll}
                 onChange={(e) => setRoll(e.target.value)}
               />
@@ -198,7 +206,7 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
                 type="tel"
                 required
                 maxLength={11}
-                className="w-full px-4 py-3 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all tracking-wider text-sm"
+                className="w-full px-4 py-4 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all tracking-wider text-sm"
                 value={phone}
                 onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
               />
@@ -213,29 +221,26 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
             <input
               type="tel"
               maxLength={11}
-              className="w-full px-4 py-3 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all tracking-wider text-sm"
+              className="w-full px-4 py-4 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all tracking-wider text-sm"
               value={phone2}
               onChange={(e) => setPhone2(e.target.value.replace(/\D/g, '').slice(0, 11))}
               placeholder={lang === 'bn' ? 'ঐচ্ছিক' : 'Optional'}
             />
           </div>
 
+          {/* New Enhanced Class Selector Design */}
           <div className="space-y-1.5">
             <label className="flex items-center gap-2 text-[10px] font-black text-white/50 uppercase tracking-widest px-1">
               <List size={12} />
               {t('class_select', lang)}
             </label>
-            <select
-              required
-              className="w-full px-4 py-3 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all appearance-none text-sm"
-              value={classId}
-              onChange={(e) => setClassId(e.target.value)}
+            <div 
+              onClick={() => setShowClassModal(true)}
+              className={`w-full px-5 py-4 bg-white/10 border border-white/15 rounded-xl flex items-center justify-between cursor-pointer active:scale-[0.98] transition-all ${!classId ? 'text-white/40' : 'text-white'}`}
             >
-              <option value="" className="text-slate-900">{t('class_choose', lang)}</option>
-              {classes.map(cls => (
-                <option key={cls.id} value={cls.id} className="text-slate-900">{cls.class_name}</option>
-              ))}
-            </select>
+              <span className="font-bold text-sm truncate">{getSelectedClassName()}</span>
+              <ChevronDown size={18} className="text-white/30" />
+            </div>
           </div>
         </div>
 
@@ -248,9 +253,66 @@ const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEd
         </button>
       </form>
 
+      {/* Modern Class Selection Modal */}
+      {showClassModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[150] flex items-end sm:items-center justify-center p-0 sm:p-6 animate-in fade-in duration-300">
+          <div className="bg-[#d35132] w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl p-6 border-t sm:border border-white/20 max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-10">
+            <div className="flex items-center justify-between mb-6 px-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white">
+                  <BookOpen size={20} />
+                </div>
+                <h2 className="text-xl font-black text-white font-noto">{t('class_select', lang)}</h2>
+              </div>
+              <button 
+                onClick={() => setShowClassModal(false)}
+                className="p-2 bg-white/10 text-white rounded-full active:scale-90 transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 px-1 custom-scrollbar pb-6">
+              {classes.length > 0 ? (
+                classes.map((cls) => (
+                  <div
+                    key={cls.id}
+                    onClick={() => {
+                      setClassId(cls.id);
+                      setShowClassModal(false);
+                    }}
+                    className={`p-4 rounded-2xl flex items-center justify-between transition-all active:scale-[0.98] ${
+                      classId === cls.id 
+                        ? 'bg-white text-[#d35132] shadow-xl' 
+                        : 'bg-white/10 text-white border border-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${classId === cls.id ? 'bg-[#d35132]/10' : 'bg-white/5'}`}>
+                        <Hash size={14} />
+                      </div>
+                      <span className="font-bold font-noto">{cls.class_name}</span>
+                    </div>
+                    {classId === cls.id && (
+                      <div className="bg-[#d35132] text-white p-1 rounded-full">
+                        <Check size={14} strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-10 opacity-40">
+                  <p className="font-bold text-sm text-white">{t('no_classes', lang)}</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Beautiful Custom Error Modal */}
       {errorModal.show && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6 animate-in fade-in duration-300">
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[200] flex items-center justify-center p-6 animate-in fade-in duration-300">
           <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in-95 text-center border border-white/20">
             <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-5 text-red-500 shadow-sm">
               <AlertCircle size={32} />
