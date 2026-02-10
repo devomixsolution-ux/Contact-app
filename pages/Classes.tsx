@@ -9,8 +9,45 @@ interface ClassesProps {
   onClassClick: (cls: Class) => void;
   lang: Language;
   dataVersion?: number;
-  triggerRefresh: () => void; // Added triggerRefresh prop
+  triggerRefresh: () => void;
 }
+
+// Custom sorting helper for Madrasah classes
+export const sortMadrasahClasses = (classes: any[]) => {
+  const priorityMap: Record<string, number> = {
+    'প্লে': 1, 'play': 1,
+    'নার্সারী': 2, 'nursery': 2,
+    'প্রথম': 3, 'one': 3, '1st': 3,
+    'দ্বিতীয়': 4, 'two': 4, '2nd': 4,
+    'তৃতীয়': 5, 'three': 5, '3rd': 5,
+    'চতুর্থ': 6, 'four': 6, '4th': 6,
+    'পঞ্চম': 7, 'five': 7, '5th': 7,
+    'ষষ্ঠ': 8, 'six': 8, '6th': 8,
+    'সপ্তম': 9, 'seven': 9, '7th': 9,
+    'অষ্টম': 10, 'eight': 10, '8th': 10,
+    'নবম': 11, 'nine': 11, '9th': 11,
+    'দশম': 12, 'ten': 12, '10th': 12
+  };
+
+  const getPriority = (name: string) => {
+    const lowerName = name.toLowerCase();
+    // Hifz should always be at the bottom
+    if (lowerName.includes('হিফজ') || lowerName.includes('hifz')) return 1000;
+    
+    for (const [key, value] of Object.entries(priorityMap)) {
+      if (lowerName.includes(key)) return value;
+    }
+    return 500; // Middle priority for unknown class names
+  };
+
+  return [...classes].sort((a, b) => {
+    const pA = getPriority(a.class_name);
+    const pB = getPriority(b.class_name);
+    
+    if (pA !== pB) return pA - pB;
+    return a.class_name.localeCompare(b.class_name, 'bn');
+  });
+};
 
 const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion, triggerRefresh }) => {
   const [classes, setClasses] = useState<(Class & { student_count?: number })[]>([]);
@@ -26,10 +63,9 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion, trig
 
   const fetchClasses = async (forceRefresh = false) => {
     if (!forceRefresh) {
-      // Load from cache first
       const cached = offlineApi.getCache('classes_with_counts');
       if (cached) {
-        setClasses(cached);
+        setClasses(sortMadrasahClasses(cached));
         setLoading(false);
       }
     } else {
@@ -40,8 +76,7 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion, trig
       try {
         const { data: classesData, error: clsError } = await supabase
           .from('classes')
-          .select('*')
-          .order('class_name');
+          .select('*');
         
         if (clsError) throw clsError;
 
@@ -55,8 +90,10 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion, trig
               return { ...cls, student_count: count || 0 };
             })
           );
-          setClasses(classesWithCounts);
-          offlineApi.setCache('classes_with_counts', classesWithCounts);
+          
+          const sorted = sortMadrasahClasses(classesWithCounts);
+          setClasses(sorted);
+          offlineApi.setCache('classes_with_counts', sorted);
         }
       } catch (err) {
         console.error("Classes fetch error:", err);
@@ -109,7 +146,6 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion, trig
         }
       }
       
-      // Clear specific caches
       offlineApi.removeCache('classes_with_counts');
       offlineApi.removeCache('classes');
       
@@ -117,7 +153,6 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion, trig
       setShowModal(false);
       setEditingClass(null);
       
-      // Crucial: Inform the parent App and refresh locally
       triggerRefresh();
       await fetchClasses(true);
       
@@ -191,6 +226,7 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion, trig
         </div>
       )}
 
+      {/* Add/Edit Modal */}
       {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
           <div className="bg-[#e57d4a] w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 border border-white/30 animate-in zoom-in-95 relative">
