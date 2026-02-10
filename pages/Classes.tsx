@@ -1,277 +1,334 @@
 
 import React, { useState, useEffect } from 'react';
-import { Plus, ChevronRight, BookOpen, Loader2, Edit2, X } from 'lucide-react';
+import { ArrowLeft, Save, User as UserIcon, Phone, List, Hash, Loader2, UserCheck, AlertCircle, X, Check, ChevronDown, BookOpen } from 'lucide-react';
 import { supabase, offlineApi } from '../supabase';
-import { Class, Language } from '../types';
+import { Student, Class, Language } from '../types';
 import { t } from '../translations';
+import { sortMadrasahClasses } from './Classes';
 
-interface ClassesProps {
-  onClassClick: (cls: Class) => void;
+interface StudentFormProps {
+  student?: Student | null;
+  defaultClassId?: string;
+  isEditing: boolean;
+  onSuccess: () => void;
+  onCancel: () => void;
   lang: Language;
-  dataVersion?: number;
-  triggerRefresh: () => void;
 }
 
-// Custom sorting helper for Madrasah classes
-export const sortMadrasahClasses = (classes: any[]) => {
-  const priorityMap: Record<string, number> = {
-    'প্লে': 1, 'play': 1,
-    'নার্সারী': 2, 'nursery': 2,
-    'কেজি': 3, 'kg': 3,
-    'প্রথম': 4, 'one': 4, '1st': 4, '১ম': 4,
-    'দ্বিতীয়': 5, 'two': 5, '2nd': 5, '২য়': 5,
-    'তৃতীয়': 6, 'three': 6, '3rd': 6, '৩য়': 6,
-    'চতুর্থ': 7, 'four': 7, '4th': 7, '৪র্থ': 7,
-    'পঞ্চম': 8, 'five': 8, '5th': 8, '৫ম': 8,
-    'ষষ্ঠ': 9, 'six': 9, '6th': 9, '৬ষ্ঠ': 9,
-    'সপ্তম': 10, 'seven': 10, '7th': 10, '৭ম': 10,
-    'অষ্টম': 11, 'eight': 11, '8th': 11, '৮ম': 11,
-    'নবম': 12, 'nine': 12, '9th': 12, '৯ম': 12,
-    'দশম': 13, 'ten': 13, '10th': 13, '১০ম': 13
-  };
-
-  const getPriority = (name: string) => {
-    const lowerName = name.toLowerCase();
-    // Hifz should always be at the absolute bottom
-    if (lowerName.includes('হিফজ') || lowerName.includes('hifz')) return 1000;
-    
-    // Check if name contains any of our map keys
-    for (const [key, value] of Object.entries(priorityMap)) {
-      if (lowerName.includes(key)) return value;
-    }
-    return 500; // Unknown classes go in the middle
-  };
-
-  return [...classes].sort((a, b) => {
-    const pA = getPriority(a.class_name);
-    const pB = getPriority(b.class_name);
-    
-    if (pA !== pB) return pA - pB;
-    // Secondary sort: Alphabetical if same priority
-    return a.class_name.localeCompare(b.class_name, 'bn');
-  });
-};
-
-const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion, triggerRefresh }) => {
-  const [classes, setClasses] = useState<(Class & { student_count?: number })[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [editingClass, setEditingClass] = useState<Class | null>(null);
-  const [newClassName, setNewClassName] = useState('');
-  const [saving, setSaving] = useState(false);
+const StudentForm: React.FC<StudentFormProps> = ({ student, defaultClassId, isEditing, onSuccess, onCancel, lang }) => {
+  const [name, setName] = useState(student?.student_name || '');
+  const [guardianName, setGuardianName] = useState(student?.guardian_name || '');
+  const [roll, setRoll] = useState(student?.roll?.toString() || '');
+  const [phone, setPhone] = useState(student?.guardian_phone || '');
+  const [phone2, setPhone2] = useState(student?.guardian_phone_2 || '');
+  const [classId, setClassId] = useState(student?.class_id || defaultClassId || '');
+  const [classes, setClasses] = useState<Class[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [showClassModal, setShowClassModal] = useState(false);
+  
+  // Custom Alert State
+  const [errorModal, setErrorModal] = useState<{show: boolean, message: string}>({show: false, message: ''});
 
   useEffect(() => {
     fetchClasses();
-  }, [dataVersion]);
+  }, []);
 
-  const fetchClasses = async (forceRefresh = false) => {
-    if (!forceRefresh) {
-      const cached = offlineApi.getCache('classes_with_counts');
-      if (cached) {
-        setClasses(sortMadrasahClasses(cached));
-        setLoading(false);
+  const fetchClasses = async () => {
+    const cached = offlineApi.getCache('classes');
+    if (cached) setClasses(sortMadrasahClasses(cached));
+
+    if (navigator.onLine) {
+      const { data } = await supabase.from('classes').select('*');
+      if (data) {
+        const sorted = sortMadrasahClasses(data);
+        setClasses(sorted);
+        offlineApi.setCache('classes', sorted);
       }
-    } else {
-      setLoading(true);
+    }
+  };
+
+  const getSelectedClassName = () => {
+    const cls = classes.find(c => c.id === classId);
+    return cls ? cls.class_name : t('class_choose', lang);
+  };
+
+  const checkDuplicateRoll = async (targetRoll: number, targetClassId: string) => {
+    const cacheKey = `students_list_${targetClassId}`;
+    const cachedStudents = offlineApi.getCache(cacheKey) as Student[] | null;
+    
+    if (cachedStudents) {
+      const isDuplicate = cachedStudents.some(s => 
+        s.roll === targetRoll && (!isEditing || s.id !== student?.id)
+      );
+      if (isDuplicate) return true;
     }
 
     if (navigator.onLine) {
-      try {
-        const { data: classesData, error: clsError } = await supabase
-          .from('classes')
-          .select('*');
-        
-        if (clsError) throw clsError;
-
-        if (classesData) {
-          const classesWithCounts = await Promise.all(
-            classesData.map(async (cls) => {
-              const { count } = await supabase
-                .from('students')
-                .select('*', { count: 'exact', head: true })
-                .eq('class_id', cls.id);
-              return { ...cls, student_count: count || 0 };
-            })
-          );
-          
-          const sorted = sortMadrasahClasses(classesWithCounts);
-          setClasses(sorted);
-          offlineApi.setCache('classes_with_counts', sorted);
-        }
-      } catch (err) {
-        console.error("Classes fetch error:", err);
-      } finally {
-        setLoading(false);
+      let query = supabase
+        .from('students')
+        .select('id')
+        .eq('class_id', targetClassId)
+        .eq('roll', targetRoll);
+      
+      if (isEditing && student) {
+        query = query.neq('id', student.id);
       }
-    } else {
-      setLoading(false);
+
+      const { data, error } = await query;
+      if (!error && data && data.length > 0) return true;
     }
+
+    return false;
   };
 
-  const openAddModal = () => {
-    setEditingClass(null);
-    setNewClassName('');
-    setShowModal(true);
-  };
-
-  const openEditModal = (e: React.MouseEvent, cls: Class) => {
-    e.stopPropagation();
-    setEditingClass(cls);
-    setNewClassName(cls.class_name);
-    setShowModal(true);
-  };
-
-  const handleSaveClass = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newClassName.trim()) return;
-    
-    setSaving(true);
+    if (!name || !phone || !classId) return;
+
+    setLoading(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('User not found');
+      if (!user) return;
+
+      if (roll) {
+        const rollNum = parseInt(roll);
+        const isDuplicate = await checkDuplicateRoll(rollNum, classId);
+        if (isDuplicate) {
+          setErrorModal({ show: true, message: t('duplicate_roll', lang) });
+          setLoading(false);
+          return;
+        }
+      }
       
       const payload = {
-        class_name: newClassName.trim(),
+        student_name: name.trim(),
+        guardian_name: guardianName.trim(),
+        roll: roll ? parseInt(roll) : null,
+        guardian_phone: phone.trim(),
+        guardian_phone_2: phone2.trim() || null,
+        class_id: classId,
         madrasah_id: user.id
       };
 
       if (navigator.onLine) {
-        if (editingClass) {
-          await supabase.from('classes').update({ class_name: payload.class_name }).eq('id', editingClass.id);
+        if (isEditing && student) {
+          await supabase.from('students').update(payload).eq('id', student.id);
         } else {
-          await supabase.from('classes').insert(payload);
+          await supabase.from('students').insert(payload);
         }
       } else {
-        if (editingClass) {
-          offlineApi.queueAction('classes', 'UPDATE', { ...payload, id: editingClass.id });
+        if (isEditing && student) {
+          offlineApi.queueAction('students', 'UPDATE', { ...payload, id: student.id });
         } else {
-          offlineApi.queueAction('classes', 'INSERT', payload);
+          offlineApi.queueAction('students', 'INSERT', payload);
         }
       }
+
+      offlineApi.removeCache(`students_list_${classId}`);
+      offlineApi.removeCache(`all_students_search`);
+      offlineApi.removeCache(`recent_calls`);
       
-      offlineApi.removeCache('classes_with_counts');
-      offlineApi.removeCache('classes');
-      
-      setNewClassName('');
-      setShowModal(false);
-      setEditingClass(null);
-      
-      triggerRefresh();
-      await fetchClasses(true);
-      
-    } catch (err: any) {
-      alert(lang === 'bn' ? 'সংরক্ষণ করা সম্ভব হয়নি' : 'Failed to save class');
-    } finally {
-      setSaving(false);
+      onSuccess();
+    } catch (err) { 
+      console.error(err); 
+      setErrorModal({ show: true, message: lang === 'bn' ? 'তথ্য সংরক্ষণ করা সম্ভব হয়নি' : 'Could not save data' });
+    } finally { 
+      setLoading(false); 
     }
   };
 
   return (
-    <div className="space-y-6 animate-in slide-in-from-right-4 duration-500">
-      <div className="flex items-center justify-between px-1">
-        <h1 className="text-2xl font-black text-white drop-shadow-lg font-noto">{t('classes_title', lang)}</h1>
-        <button 
-          onClick={openAddModal}
-          className="bg-white text-[#d35132] px-4 py-2.5 rounded-xl text-[13px] font-black flex items-center gap-2 shadow-2xl active:scale-95 transition-all"
-        >
-          <Plus size={16} strokeWidth={3.5} />
-          {t('new_class', lang)}
+    <div className="animate-in slide-in-from-bottom-6 duration-500 pb-8">
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={onCancel} className="p-2.5 bg-white/10 rounded-xl text-white active:scale-90 transition-all border border-white/20 backdrop-blur-md">
+          <ArrowLeft size={22} strokeWidth={2.5} />
         </button>
+        <h1 className="text-xl font-black text-white">
+          {isEditing ? t('edit_student', lang) : t('add_student', lang)}
+        </h1>
       </div>
 
-      {loading && classes.length === 0 ? (
-        <div className="space-y-4">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-24 bg-white/10 animate-pulse rounded-[2.2rem]"></div>
-          ))}
-        </div>
-      ) : classes.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4">
-          {classes.map(cls => (
-            <div
-              key={cls.id}
-              onClick={() => onClassClick(cls)}
-              className="bg-white/15 backdrop-blur-lg p-5 rounded-[2.2rem] border border-white/30 shadow-2xl flex items-center justify-between active:bg-white/30 transition-all text-left group relative overflow-hidden"
-            >
-              <div className="flex items-center gap-4 flex-1 min-w-0">
-                <div className="bg-white/20 text-white p-3.5 rounded-[1.2rem] shadow-inner shrink-0">
-                  <BookOpen size={24} strokeWidth={2.5} />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-black text-white text-[20px] leading-tight font-noto tracking-tight truncate max-w-[150px]">
-                      {cls.class_name}
-                    </h3>
-                    <span className="bg-white/10 px-2 py-0.5 rounded-lg text-[9px] text-white/80 font-black font-noto shrink-0">
-                      ({cls.student_count || 0} {t('students_count', lang)})
-                    </span>
-                  </div>
-                  <p className="text-[10px] text-white/60 font-black uppercase tracking-[0.1em] mt-1">{t('view_students', lang)}</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-2 shrink-0">
-                <button 
-                  onClick={(e) => openEditModal(e, cls)}
-                  className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl border border-white/10 transition-all active:scale-90"
-                >
-                  <Edit2 size={16} />
-                </button>
-                <ChevronRight className="text-white/40 group-active:text-white" size={20} strokeWidth={3} />
-              </div>
+      <form onSubmit={handleSubmit} className="space-y-6">
+        <div className="bg-white/10 backdrop-blur-xl p-6 rounded-[2rem] border border-white/20 shadow-xl space-y-5">
+          {!navigator.onLine && (
+            <p className="text-[10px] bg-yellow-400/20 text-yellow-200 p-2 rounded-lg font-bold text-center">
+              {lang === 'bn' ? 'আপনি অফলাইনে আছেন। ডাটা পরে সেভ হবে।' : 'You are offline. Data will sync later.'}
+            </p>
+          )}
+          
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-2 text-[10px] font-black text-white/50 uppercase tracking-widest px-1">
+              <UserIcon size={12} />
+              {t('student_name', lang)}
+            </label>
+            <input
+              type="text"
+              required
+              className="w-full px-4 py-4 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all text-sm"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-2 text-[10px] font-black text-white/50 uppercase tracking-widest px-1">
+              <UserCheck size={12} />
+              {t('guardian_name', lang)}
+            </label>
+            <input
+              type="text"
+              className="w-full px-4 py-4 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all text-sm"
+              value={guardianName}
+              onChange={(e) => setGuardianName(e.target.value)}
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-2 text-[10px] font-black text-white/50 uppercase tracking-widest px-1">
+                <Hash size={12} />
+                {t('roll', lang)}
+              </label>
+              <input
+                type="number"
+                className="w-full px-4 py-4 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all text-center text-sm"
+                value={roll}
+                onChange={(e) => setRoll(e.target.value)}
+              />
             </div>
-          ))}
+
+            <div className="space-y-1.5">
+              <label className="flex items-center gap-2 text-[10px] font-black text-white/50 uppercase tracking-widest px-1">
+                <Phone size={12} />
+                {t('guardian_phone', lang)}
+              </label>
+              <input
+                type="tel"
+                required
+                maxLength={11}
+                className="w-full px-4 py-4 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all tracking-wider text-sm"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value.replace(/\D/g, '').slice(0, 11))}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-2 text-[10px] font-black text-white/50 uppercase tracking-widest px-1">
+              <Phone size={12} />
+              {t('guardian_phone_2', lang)}
+            </label>
+            <input
+              type="tel"
+              maxLength={11}
+              className="w-full px-4 py-4 bg-white/10 border border-white/15 rounded-xl outline-none text-white font-bold focus:bg-white/20 transition-all tracking-wider text-sm"
+              value={phone2}
+              onChange={(e) => setPhone2(e.target.value.replace(/\D/g, '').slice(0, 11))}
+              placeholder={lang === 'bn' ? 'ঐচ্ছিক' : 'Optional'}
+            />
+          </div>
+
+          {/* New Enhanced Class Selector Design */}
+          <div className="space-y-1.5">
+            <label className="flex items-center gap-2 text-[10px] font-black text-white/50 uppercase tracking-widest px-1">
+              <List size={12} />
+              {t('class_select', lang)}
+            </label>
+            <div 
+              onClick={() => setShowClassModal(true)}
+              className={`w-full px-5 py-4 bg-white/10 border border-white/15 rounded-xl flex items-center justify-between cursor-pointer active:scale-[0.98] transition-all ${!classId ? 'text-white/40' : 'text-white'}`}
+            >
+              <span className="font-bold text-sm truncate">{getSelectedClassName()}</span>
+              <ChevronDown size={18} className="text-white/30" />
+            </div>
+          </div>
         </div>
-      ) : (
-        <div className="text-center py-20 bg-white/5 rounded-[3rem] border-2 border-dashed border-white/20 backdrop-blur-sm">
-          <BookOpen className="mx-auto text-white/10 mb-5" size={60} />
-          <p className="text-white/60 font-black text-lg">{t('no_classes', lang)}</p>
+
+        <button
+          type="submit"
+          disabled={loading}
+          className="w-full py-4 bg-white text-[#d35132] font-black rounded-2xl shadow-xl active:scale-95 transition-all text-base flex items-center justify-center gap-2"
+        >
+          {loading ? <Loader2 className="animate-spin" size={20} /> : <><Save size={20} /> {t('save', lang)}</>}
+        </button>
+      </form>
+
+      {/* Modern Class Selection Modal */}
+      {showClassModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[150] flex items-end sm:items-center justify-center p-0 sm:p-6 animate-in fade-in duration-300">
+          <div className="bg-[#d35132] w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] shadow-2xl p-6 border-t sm:border border-white/20 max-h-[85vh] flex flex-col animate-in slide-in-from-bottom-10">
+            <div className="flex items-center justify-between mb-6 px-2">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center text-white">
+                  <BookOpen size={20} />
+                </div>
+                <h2 className="text-xl font-black text-white font-noto">{t('class_select', lang)}</h2>
+              </div>
+              <button 
+                onClick={() => setShowClassModal(false)}
+                className="p-2 bg-white/10 text-white rounded-full active:scale-90 transition-all"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-3 px-1 custom-scrollbar pb-6">
+              {classes.length > 0 ? (
+                classes.map((cls) => (
+                  <div
+                    key={cls.id}
+                    onClick={() => {
+                      setClassId(cls.id);
+                      setShowClassModal(false);
+                    }}
+                    className={`p-4 rounded-2xl flex items-center justify-between transition-all active:scale-[0.98] ${
+                      classId === cls.id 
+                        ? 'bg-white text-[#d35132] shadow-xl' 
+                        : 'bg-white/10 text-white border border-white/5'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${classId === cls.id ? 'bg-[#d35132]/10' : 'bg-white/5'}`}>
+                        <Hash size={14} />
+                      </div>
+                      <span className="font-bold font-noto">{cls.class_name}</span>
+                    </div>
+                    {classId === cls.id && (
+                      <div className="bg-[#d35132] text-white p-1 rounded-full">
+                        <Check size={14} strokeWidth={3} />
+                      </div>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <div className="text-center py-10 opacity-40">
+                  <p className="font-bold text-sm text-white">{t('no_classes', lang)}</p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Add/Edit Modal */}
-      {showModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
-          <div className="bg-[#e57d4a] w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 border border-white/30 animate-in zoom-in-95 relative">
-            <button 
-              onClick={() => setShowModal(false)}
-              className="absolute top-6 right-6 text-white/60 hover:text-white"
-            >
-              <X size={24} />
-            </button>
-            <h2 className="text-2xl font-black text-white mb-6 text-center font-noto">
-              {editingClass ? t('edit_class', lang) : t('new_class', lang)}
+      {/* Beautiful Custom Error Modal */}
+      {errorModal.show && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[200] flex items-center justify-center p-6 animate-in fade-in duration-300">
+          <div className="bg-white w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 animate-in zoom-in-95 text-center border border-white/20">
+            <div className="w-16 h-16 bg-red-100 rounded-2xl flex items-center justify-center mx-auto mb-5 text-red-500 shadow-sm">
+              <AlertCircle size={32} />
+            </div>
+            <h2 className="text-xl font-black text-slate-800 mb-3 font-noto">
+              {lang === 'bn' ? 'দুঃখিত!' : 'Sorry!'}
             </h2>
-            <form onSubmit={handleSaveClass} className="space-y-6">
-              <div>
-                <label className="block text-[10px] font-black text-white/70 uppercase tracking-[0.2em] mb-3 px-1">{t('class_name_label', lang)}</label>
-                <input
-                  type="text"
-                  required
-                  placeholder={lang === 'bn' ? '১ম শ্রেণি' : 'e.g. Class 1'}
-                  className="w-full px-6 py-4 bg-white/20 border border-white/30 rounded-2xl outline-none text-white placeholder:text-white/40 font-black text-lg focus:bg-white/30 transition-all shadow-inner"
-                  value={newClassName}
-                  onChange={(e) => setNewClassName(e.target.value)}
-                  autoFocus
-                />
-              </div>
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setShowModal(false)}
-                  className="flex-1 py-4 bg-white/10 text-white font-black text-sm rounded-xl border border-white/20 active:scale-95 transition-all"
-                >
-                  {t('cancel', lang)}
-                </button>
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="flex-1 py-4 bg-white text-[#d35132] font-black text-sm rounded-xl shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-2"
-                >
-                  {saving ? <Loader2 className="animate-spin" size={18} /> : t('save', lang)}
-                </button>
-              </div>
-            </form>
+            <p className="text-slate-600 text-sm font-bold mb-8 font-noto leading-relaxed px-2">
+              {errorModal.message}
+            </p>
+            <button
+              onClick={() => setErrorModal({ show: false, message: '' })}
+              className="w-full py-4 bg-[#d35132] text-white font-black rounded-2xl shadow-xl active:scale-95 transition-all flex items-center justify-center gap-2"
+            >
+              {lang === 'bn' ? 'ঠিক আছে' : 'OK'}
+            </button>
           </div>
         </div>
       )}
@@ -279,4 +336,4 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion, trig
   );
 };
 
-export default Classes;
+export default StudentForm;
