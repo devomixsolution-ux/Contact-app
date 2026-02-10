@@ -9,9 +9,10 @@ interface ClassesProps {
   onClassClick: (cls: Class) => void;
   lang: Language;
   dataVersion?: number;
+  triggerRefresh: () => void; // Added triggerRefresh prop
 }
 
-const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) => {
+const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion, triggerRefresh }) => {
   const [classes, setClasses] = useState<(Class & { student_count?: number })[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -74,7 +75,7 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
   };
 
   const openEditModal = (e: React.MouseEvent, cls: Class) => {
-    e.stopPropagation(); // Prevents navigating to students list
+    e.stopPropagation();
     setEditingClass(cls);
     setNewClassName(cls.class_name);
     setShowModal(true);
@@ -108,7 +109,7 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
         }
       }
       
-      // Clear cache immediately to force refresh
+      // Clear specific caches
       offlineApi.removeCache('classes_with_counts');
       offlineApi.removeCache('classes');
       
@@ -116,8 +117,10 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
       setShowModal(false);
       setEditingClass(null);
       
-      // Fetch fresh data
+      // Crucial: Inform the parent App and refresh locally
+      triggerRefresh();
       await fetchClasses(true);
+      
     } catch (err: any) {
       alert(lang === 'bn' ? 'সংরক্ষণ করা সম্ভব হয়নি' : 'Failed to save class');
     } finally {
