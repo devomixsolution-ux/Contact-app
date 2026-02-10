@@ -17,27 +17,29 @@ export const sortMadrasahClasses = (classes: any[]) => {
   const priorityMap: Record<string, number> = {
     'প্লে': 1, 'play': 1,
     'নার্সারী': 2, 'nursery': 2,
-    'প্রথম': 3, 'one': 3, '1st': 3,
-    'দ্বিতীয়': 4, 'two': 4, '2nd': 4,
-    'তৃতীয়': 5, 'three': 5, '3rd': 5,
-    'চতুর্থ': 6, 'four': 6, '4th': 6,
-    'পঞ্চম': 7, 'five': 7, '5th': 7,
-    'ষষ্ঠ': 8, 'six': 8, '6th': 8,
-    'সপ্তম': 9, 'seven': 9, '7th': 9,
-    'অষ্টম': 10, 'eight': 10, '8th': 10,
-    'নবম': 11, 'nine': 11, '9th': 11,
-    'দশম': 12, 'ten': 12, '10th': 12
+    'কেজি': 3, 'kg': 3,
+    'প্রথম': 4, 'one': 4, '1st': 4, '১ম': 4,
+    'দ্বিতীয়': 5, 'two': 5, '2nd': 5, '২য়': 5,
+    'তৃতীয়': 6, 'three': 6, '3rd': 6, '৩য়': 6,
+    'চতুর্থ': 7, 'four': 7, '4th': 7, '৪র্থ': 7,
+    'পঞ্চম': 8, 'five': 8, '5th': 8, '৫ম': 8,
+    'ষষ্ঠ': 9, 'six': 9, '6th': 9, '৬ষ্ঠ': 9,
+    'সপ্তম': 10, 'seven': 10, '7th': 10, '৭ম': 10,
+    'অষ্টম': 11, 'eight': 11, '8th': 11, '৮ম': 11,
+    'নবম': 12, 'nine': 12, '9th': 12, '৯ম': 12,
+    'দশম': 13, 'ten': 13, '10th': 13, '১০ম': 13
   };
 
   const getPriority = (name: string) => {
     const lowerName = name.toLowerCase();
-    // Hifz should always be at the bottom
+    // Hifz should always be at the absolute bottom
     if (lowerName.includes('হিফজ') || lowerName.includes('hifz')) return 1000;
     
+    // Check if name contains any of our map keys
     for (const [key, value] of Object.entries(priorityMap)) {
       if (lowerName.includes(key)) return value;
     }
-    return 500; // Middle priority for unknown class names
+    return 500; // Unknown classes go in the middle
   };
 
   return [...classes].sort((a, b) => {
@@ -45,6 +47,7 @@ export const sortMadrasahClasses = (classes: any[]) => {
     const pB = getPriority(b.class_name);
     
     if (pA !== pB) return pA - pB;
+    // Secondary sort: Alphabetical if same priority
     return a.class_name.localeCompare(b.class_name, 'bn');
   });
 };
