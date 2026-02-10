@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Plus, ChevronRight, BookOpen, Loader2 } from 'lucide-react';
+import { Plus, ChevronRight, BookOpen, Loader2, Edit2, X } from 'lucide-react';
 import { supabase, offlineApi } from '../supabase';
 import { Class, Language } from '../types';
 import { t } from '../translations';
@@ -14,7 +14,8 @@ interface ClassesProps {
 const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) => {
   const [classes, setClasses] = useState<(Class & { student_count?: number })[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingClass, setEditingClass] = useState<Class | null>(null);
   const [newClassName, setNewClassName] = useState('');
   const [saving, setSaving] = useState(false);
 
@@ -22,14 +23,16 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
     fetchClasses();
   }, [dataVersion]);
 
-  const fetchClasses = async () => {
-    setLoading(true);
-    
-    // Load from cache first
-    const cached = offlineApi.getCache('classes_with_counts');
-    if (cached) {
-      setClasses(cached);
-      setLoading(false);
+  const fetchClasses = async (forceRefresh = false) => {
+    if (!forceRefresh) {
+      // Load from cache first
+      const cached = offlineApi.getCache('classes_with_counts');
+      if (cached) {
+        setClasses(cached);
+        setLoading(false);
+      }
+    } else {
+      setLoading(true);
     }
 
     if (navigator.onLine) {
@@ -64,7 +67,20 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
     }
   };
 
-  const handleAddClass = async (e: React.FormEvent) => {
+  const openAddModal = () => {
+    setEditingClass(null);
+    setNewClassName('');
+    setShowModal(true);
+  };
+
+  const openEditModal = (e: React.MouseEvent, cls: Class) => {
+    e.stopPropagation(); // Prevents navigating to students list
+    setEditingClass(cls);
+    setNewClassName(cls.class_name);
+    setShowModal(true);
+  };
+
+  const handleSaveClass = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newClassName.trim()) return;
     
@@ -79,16 +95,31 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
       };
 
       if (navigator.onLine) {
-        await supabase.from('classes').insert(payload);
+        if (editingClass) {
+          await supabase.from('classes').update({ class_name: payload.class_name }).eq('id', editingClass.id);
+        } else {
+          await supabase.from('classes').insert(payload);
+        }
       } else {
-        offlineApi.queueAction('classes', 'INSERT', payload);
+        if (editingClass) {
+          offlineApi.queueAction('classes', 'UPDATE', { ...payload, id: editingClass.id });
+        } else {
+          offlineApi.queueAction('classes', 'INSERT', payload);
+        }
       }
       
+      // Clear cache immediately to force refresh
+      offlineApi.removeCache('classes_with_counts');
+      offlineApi.removeCache('classes');
+      
       setNewClassName('');
-      setShowAddModal(false);
-      fetchClasses();
+      setShowModal(false);
+      setEditingClass(null);
+      
+      // Fetch fresh data
+      await fetchClasses(true);
     } catch (err: any) {
-      alert(lang === 'bn' ? 'ক্লাস যোগ করা যায়নি' : 'Failed to add class');
+      alert(lang === 'bn' ? 'সংরক্ষণ করা সম্ভব হয়নি' : 'Failed to save class');
     } finally {
       setSaving(false);
     }
@@ -99,7 +130,7 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
       <div className="flex items-center justify-between px-1">
         <h1 className="text-2xl font-black text-white drop-shadow-lg font-noto">{t('classes_title', lang)}</h1>
         <button 
-          onClick={() => setShowAddModal(true)}
+          onClick={openAddModal}
           className="bg-white text-[#d35132] px-4 py-2.5 rounded-xl text-[13px] font-black flex items-center gap-2 shadow-2xl active:scale-95 transition-all"
         >
           <Plus size={16} strokeWidth={3.5} />
@@ -116,29 +147,38 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
       ) : classes.length > 0 ? (
         <div className="grid grid-cols-1 gap-4">
           {classes.map(cls => (
-            <button
+            <div
               key={cls.id}
               onClick={() => onClassClick(cls)}
-              className="bg-white/15 backdrop-blur-lg p-5 rounded-[2.2rem] border border-white/30 shadow-2xl flex items-center justify-between active:bg-white/30 transition-all text-left group"
+              className="bg-white/15 backdrop-blur-lg p-5 rounded-[2.2rem] border border-white/30 shadow-2xl flex items-center justify-between active:bg-white/30 transition-all text-left group relative overflow-hidden"
             >
-              <div className="flex items-center gap-4">
-                <div className="bg-white/20 text-white p-3.5 rounded-[1.2rem] shadow-inner">
+              <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="bg-white/20 text-white p-3.5 rounded-[1.2rem] shadow-inner shrink-0">
                   <BookOpen size={24} strokeWidth={2.5} />
                 </div>
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-black text-white text-[23px] leading-tight font-noto tracking-tight">
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="font-black text-white text-[20px] leading-tight font-noto tracking-tight truncate max-w-[150px]">
                       {cls.class_name}
                     </h3>
-                    <span className="bg-white/10 px-2 py-0.5 rounded-lg text-[10px] text-white/80 font-black font-noto">
+                    <span className="bg-white/10 px-2 py-0.5 rounded-lg text-[9px] text-white/80 font-black font-noto shrink-0">
                       ({cls.student_count || 0} {t('students_count', lang)})
                     </span>
                   </div>
-                  <p className="text-[10px] text-white/60 font-black uppercase tracking-[0.1em] mt-0.5">{t('view_students', lang)}</p>
+                  <p className="text-[10px] text-white/60 font-black uppercase tracking-[0.1em] mt-1">{t('view_students', lang)}</p>
                 </div>
               </div>
-              <ChevronRight className="text-white/40 group-active:text-white" size={20} strokeWidth={3} />
-            </button>
+              
+              <div className="flex items-center gap-2 shrink-0">
+                <button 
+                  onClick={(e) => openEditModal(e, cls)}
+                  className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl border border-white/10 transition-all active:scale-90"
+                >
+                  <Edit2 size={16} />
+                </button>
+                <ChevronRight className="text-white/40 group-active:text-white" size={20} strokeWidth={3} />
+              </div>
+            </div>
           ))}
         </div>
       ) : (
@@ -148,11 +188,19 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
         </div>
       )}
 
-      {showAddModal && (
+      {showModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-xl z-[100] flex items-center justify-center p-6">
-          <div className="bg-[#e57d4a] w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 border border-white/30 animate-in zoom-in-95">
-            <h2 className="text-2xl font-black text-white mb-6 text-center font-noto">{t('new_class', lang)}</h2>
-            <form onSubmit={handleAddClass} className="space-y-6">
+          <div className="bg-[#e57d4a] w-full max-w-sm rounded-[2.5rem] shadow-2xl p-8 border border-white/30 animate-in zoom-in-95 relative">
+            <button 
+              onClick={() => setShowModal(false)}
+              className="absolute top-6 right-6 text-white/60 hover:text-white"
+            >
+              <X size={24} />
+            </button>
+            <h2 className="text-2xl font-black text-white mb-6 text-center font-noto">
+              {editingClass ? t('edit_class', lang) : t('new_class', lang)}
+            </h2>
+            <form onSubmit={handleSaveClass} className="space-y-6">
               <div>
                 <label className="block text-[10px] font-black text-white/70 uppercase tracking-[0.2em] mb-3 px-1">{t('class_name_label', lang)}</label>
                 <input
@@ -168,13 +216,14 @@ const Classes: React.FC<ClassesProps> = ({ onClassClick, lang, dataVersion }) =>
               <div className="flex gap-3">
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
+                  onClick={() => setShowModal(false)}
                   className="flex-1 py-4 bg-white/10 text-white font-black text-sm rounded-xl border border-white/20 active:scale-95 transition-all"
                 >
                   {t('cancel', lang)}
                 </button>
                 <button
                   type="submit"
+                  disabled={saving}
                   className="flex-1 py-4 bg-white text-[#d35132] font-black text-sm rounded-xl shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-2"
                 >
                   {saving ? <Loader2 className="animate-spin" size={18} /> : t('save', lang)}
